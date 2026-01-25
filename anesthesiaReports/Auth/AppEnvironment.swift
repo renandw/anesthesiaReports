@@ -6,6 +6,6 @@
 //
 import Foundation
 
-enum Environment {
+enum AppEnvironment {
     static let baseURL = URL(string: "https://fichasanestesicas.bomsucessoserver.com")!
 }

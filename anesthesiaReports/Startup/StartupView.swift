@@ -2,41 +2,40 @@
 //  StartupView.swift
 //  anesthesiaReports
 //
+//  Created by Renan Wrobel on 25/01/26.
+//
+
 
 import SwiftUI
 
 struct StartupView: View {
 
-    @Environment(AuthSession.self) private var authSession
+    @SwiftUI.Environment(AuthSession.self) private var authSession
 
     var body: some View {
         Group {
             switch authSession.state {
-
             case .loading:
-                loadingView
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Carregando…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
             case .unauthenticated:
                 LoginView()
 
             case .authenticated:
                 DashboardView()
+                
+            case .sessionExpired:
+                SessionExpiredView()
             }
         }
         .task {
-            // Executado uma única vez quando a view aparece
             await authSession.bootstrap()
         }
     }
-
-    // MARK: - Loading UI
-
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Carregando…")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-    }
 }
+

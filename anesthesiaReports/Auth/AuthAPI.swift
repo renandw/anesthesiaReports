@@ -1,10 +1,15 @@
+//
+//  AuthAPI.swift
+//  anesthesiaReports
+//
+
 import Foundation
 
 final class AuthAPI {
 
-    private static let baseURL = URL(string: "http://localhost:7362")!
+    private static let baseURL = AppEnvironment.baseURL
 
-    // MARK: - Login
+    // MARK: - Login (público)
 
     static func login(
         email: String,
@@ -12,7 +17,7 @@ final class AuthAPI {
     ) async throws -> LoginResponse {
 
         var request = URLRequest(
-            url: baseURL.appendingPathComponent("/auth/login")
+            url: baseURL.appendingPathComponent("auth/login")
         )
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -21,34 +26,34 @@ final class AuthAPI {
             LoginRequest(email: email, password: password)
         )
 
-        return try await send(request)
+        return try await HTTPClient.shared.send(request)
     }
 
-    // MARK: - Register
+    // MARK: - Register (público)
 
     static func register(
         requestBody: RegisterRequest
     ) async throws -> RegisterResponse {
 
         var request = URLRequest(
-            url: baseURL.appendingPathComponent("/auth/register")
+            url: baseURL.appendingPathComponent("auth/register")
         )
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        return try await send(request)
+        return try await HTTPClient.shared.send(request)
     }
 
-    // MARK: - Refresh (não usa access token)
+    // MARK: - Refresh (público, sem Authorization)
 
     static func refresh(
         refreshToken: String
     ) async throws -> RefreshResponse {
 
         var request = URLRequest(
-            url: baseURL.appendingPathComponent("/auth/refresh")
+            url: baseURL.appendingPathComponent("auth/refresh")
         )
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -57,46 +62,30 @@ final class AuthAPI {
             RefreshRequest(refresh_token: refreshToken)
         )
 
-        return try await send(request)
+        return try await HTTPClient.shared.send(request)
     }
 
-    // MARK: - User State
+    // MARK: - User State (privado)
 
     static func fetchMe() async throws -> UserDTO {
 
-        let token = try await TokenManager.shared.accessToken()
-
-        var request = URLRequest(
-            url: baseURL.appendingPathComponent("/users/me")
+        let request = URLRequest(
+            url: baseURL.appendingPathComponent("users/me")
         )
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        return try await send(request)
+        let response: MeResponse = try await HTTPClient.shared.send(request)
+        return response.user
     }
 
-    // MARK: - Core HTTP
+    // MARK: - Logout (privado)
 
-    private static func send<T: Decodable>(
-        _ request: URLRequest
-    ) async throws -> T {
+    static func logout() async throws {
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NetworkError.invalidResponse
-        }
-
-        if (200...299).contains(http.statusCode) {
-            return try JSONDecoder.backend.decode(T.self, from: data)
-        }
-
-        // erro padronizado
-        let apiError = try? JSONDecoder.backend.decode(
-            APIErrorResponse.self,
-            from: data
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("auth/logout")
         )
+        request.httpMethod = "POST"
 
-        throw AuthError.from(apiError, statusCode: http.statusCode)
+        try await HTTPClient.shared.sendNoContent(request)
     }
 }

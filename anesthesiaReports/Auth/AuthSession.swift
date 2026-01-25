@@ -2,6 +2,8 @@
 //  AuthSession.swift
 //  anesthesiaReports
 //
+//  Created by Renan Wrobel on 25/01/26.
+//
 
 import Foundation
 import SwiftData
@@ -15,6 +17,7 @@ final class AuthSession {
         case loading
         case unauthenticated
         case authenticated
+        case sessionExpired
     }
 
     private(set) var state: State = .loading
@@ -35,7 +38,27 @@ final class AuthSession {
             try await authService.loadUserState()
             state = .authenticated
         } catch {
-            await handle(error)
+            await handleBootstrapError(error)
+        }
+    }
+
+    private func handleBootstrapError(_ error: Error) async {
+        let authError = error as? AuthError
+
+        switch authError {
+        case .notAuthenticated,
+             .sessionExpired:
+            // Sessão expirada: dados preservados
+            state = .sessionExpired
+
+        case .userDeleted,
+             .userInactive:
+            // Invalidação definitiva
+            await authService.logout()
+            state = .unauthenticated
+
+        default:
+            state = .unauthenticated
         }
     }
 
@@ -69,6 +92,7 @@ final class AuthSession {
     }
 
     func logout() async {
+        // Logout explícito: encerra sessão e apaga dados locais
         await authService.logout()
         state = .unauthenticated
     }
@@ -81,23 +105,20 @@ final class AuthSession {
 
         switch authError {
 
-        // 🔐 Sessão inválida → logout silencioso
         case .notAuthenticated,
-             .tokenInvalid,
-             .userDeleted:
+             .sessionExpired:
+            // Sessão expirada durante uso normal
+            state = .sessionExpired
+
+        case .userDeleted,
+             .userInactive:
+            // Backend invalidou definitivamente
             await authService.logout()
             state = .unauthenticated
 
-        // 👤 Conta bloqueada
-        case .userInactive:
-            await authService.logout()
-            state = .unauthenticated
-
-        // 🔑 Credenciais inválidas (login)
         case .invalidCredentials:
             state = .unauthenticated
 
-        // 🌐 Infra / desconhecido
         default:
             state = .unauthenticated
         }

@@ -2,6 +2,8 @@
 //  LoginView.swift
 //  anesthesiaReports
 //
+//  Created by Renan Wrobel on 25/01/26.
+//
 
 import SwiftUI
 
@@ -54,7 +56,7 @@ struct LoginView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
+                .disabled(isLoading || email.isEmpty || password.isEmpty)
 
                 NavigationLink("Criar conta") {
                     RegisterView()
@@ -75,7 +77,7 @@ struct LoginView: View {
 
         do {
             await authSession.login(
-                email: email,
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
                 password: password
             )
             // sucesso → AuthSession.state muda → StartupView troca a tela
@@ -90,6 +92,8 @@ struct LoginView: View {
 
     private func message(for error: AuthError) -> String {
         switch error {
+        case .sessionExpired:
+            return "Sua sessão expirou. Entre novamente."
         case .invalidCredentials:
             return "Email ou senha incorretos."
         case .userInactive:

@@ -29,9 +29,35 @@
 		C00D873F2F25705400E7661A /* anesthesiaReportsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = anesthesiaReportsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C00D87792F25A1A200E7661A /* Exceptions for "anesthesiaReports" folder in "anesthesiaReports" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Documentation/StartUPFlow-FSD.md",
+				"Documentation/SyncEngine-FSD.md",
+			);
+			target = C00D87272F25705200E7661A /* anesthesiaReports */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		C00D877A2F25A1A200E7661A /* Exceptions for "anesthesiaReports" folder in "Compile Sources" phase from "anesthesiaReports" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = C00D87242F25705200E7661A /* Sources */;
+			membershipExceptions = (
+				"Documentation/StartUPFlow-FSD.md",
+				"Documentation/SyncEngine-FSD.md",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C00D872A2F25705200E7661A /* anesthesiaReports */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C00D87792F25A1A200E7661A /* Exceptions for "anesthesiaReports" folder in "anesthesiaReports" target */,
+				C00D877A2F25A1A200E7661A /* Exceptions for "anesthesiaReports" folder in "Compile Sources" phase from "anesthesiaReports" target */,
+			);
 			path = anesthesiaReports;
 			sourceTree = "<group>";
 		};
