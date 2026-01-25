@@ -21,7 +21,7 @@ final class AuthSession {
     }
 
     private(set) var state: State = .loading
-
+    private(set) var hasPendingChanges: Bool = false
     private let authService: AuthService
 
     init(modelContext: ModelContext) {
@@ -69,6 +69,7 @@ final class AuthSession {
 
         do {
             try await authService.login(email: email, password: password)
+            await updatePendingChanges()
             state = .authenticated
         } catch {
             await handle(error)
@@ -121,6 +122,14 @@ final class AuthSession {
 
         default:
             state = .unauthenticated
+        }
+    }
+
+    private func updatePendingChanges() async {
+        do {
+            hasPendingChanges = try authService.hasPendingLocalChanges()
+        } catch {
+            hasPendingChanges = false
         }
     }
 }
