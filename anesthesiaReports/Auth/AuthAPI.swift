@@ -1,91 +1,68 @@
-//
-//  AuthAPI.swift
-//  anesthesiaReports
-//
-
 import Foundation
 
-final class AuthAPI {
+struct AuthAPI {
 
-    private static let baseURL = AppEnvironment.baseURL
+    private let baseURL = URL(string: "https://fichasanestesicas.bomsucessoserver.com")!
 
-    // MARK: - Login (público)
+    // MARK: - Login
 
-    static func login(
-        email: String,
-        password: String
-    ) async throws -> LoginResponse {
-
-        var request = URLRequest(
-            url: baseURL.appendingPathComponent("auth/login")
+    func login(email: String, password: String) async throws -> AuthResponse {
+        try await request(
+            path: "/auth/login",
+            body: [
+                "email": email,
+                "password": password
+            ]
         )
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        request.httpBody = try JSONEncoder().encode(
-            LoginRequest(email: email, password: password)
-        )
-
-        return try await HTTPClient.shared.send(request)
     }
 
-    // MARK: - Register (público)
+    // MARK: - Register
 
-    static func register(
-        requestBody: RegisterRequest
-    ) async throws -> RegisterResponse {
-
-        var request = URLRequest(
-            url: baseURL.appendingPathComponent("auth/register")
-        )
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        request.httpBody = try JSONEncoder().encode(requestBody)
-
-        return try await HTTPClient.shared.send(request)
+    func register(_ input: RegisterInput) async throws {
+        _ = try await request(
+            path: "/auth/register",
+            body: input
+        ) as EmptyResponse
     }
 
-    // MARK: - Refresh (público, sem Authorization)
+    // MARK: - Refresh
 
-    static func refresh(
-        refreshToken: String
-    ) async throws -> RefreshResponse {
-
-        var request = URLRequest(
-            url: baseURL.appendingPathComponent("auth/refresh")
+    func refresh(refreshToken: String) async throws -> AuthResponse {
+        try await request(
+            path: "/auth/refresh",
+            body: [
+                "refresh_token": refreshToken
+            ]
         )
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        request.httpBody = try JSONEncoder().encode(
-            RefreshRequest(refresh_token: refreshToken)
-        )
-
-        return try await HTTPClient.shared.send(request)
     }
 
-    // MARK: - User State (privado)
+    // MARK: - Generic request
 
-    static func fetchMe() async throws -> UserDTO {
+    private func request<T: Decodable, B: Encodable>(
+        path: String,
+        body: B
+    ) async throws -> T {
 
-        let request = URLRequest(
-            url: baseURL.appendingPathComponent("users/me")
-        )
-
-        let response: MeResponse = try await HTTPClient.shared.send(request)
-        return response.user
-    }
-
-    // MARK: - Logout (privado)
-
-    static func logout() async throws {
-
-        var request = URLRequest(
-            url: baseURL.appendingPathComponent("auth/logout")
-        )
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
 
-        try await HTTPClient.shared.sendNoContent(request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthError.network
+        }
+
+        if !(200...299).contains(http.statusCode) {
+            throw AuthError.from(statusCode: http.statusCode, data: data)
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(T.self, from: data)
     }
 }
+
+// MARK: - DTOs
+

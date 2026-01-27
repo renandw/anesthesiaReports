@@ -1,68 +1,28 @@
-//
-//  SessionExpiredView.swift
-//  anesthesiaReports
-//
-
 import SwiftUI
 
 struct SessionExpiredView: View {
 
-    @Environment(AuthSession.self) private var authSession
-
-    @State private var showLogin = false
+    @EnvironmentObject private var session: AuthSession
 
     var body: some View {
-        VStack(spacing: 24) {
-
-            Spacer()
-
-            Image(systemName: "lock.clock")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 16) {
 
             Text("Sessão expirada")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.headline)
 
-            Text("""
-Seus dados estão salvos neste dispositivo.
+            Text("Por favor, autentique-se novamente.")
+                .multilineTextAlignment(.center)
 
-Para continuar sincronizando e editar informações,
-é necessário entrar novamente.
-""")
-            .font(.body)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal)
-
-            Spacer()
-
-            VStack(spacing: 12) {
-
-                Button {
-                    showLogin = true
-                } label: {
-                    Text("Entrar novamente")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button(role: .destructive) {
-                    Task {
-                        await authSession.logout()
-                    }
-                } label: {
-                    Text("Sair e apagar dados")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+            Button("Ir para login") {
+                session.acknowledgeSessionExpired()
             }
-            .padding(.horizontal)
 
+            Button("Logout") {
+                Task {
+                    await session.logout()
+                }
+            }
         }
         .padding()
-        .fullScreenCover(isPresented: $showLogin) {
-            LoginView()
-        }
     }
 }

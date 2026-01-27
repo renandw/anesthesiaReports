@@ -1,135 +1,127 @@
-//
-//  AuthSession.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 25/01/26.
-//
-
 import Foundation
-import SwiftData
-import Observation
+import Combine
 
 @MainActor
-@Observable
-final class AuthSession {
+final class AuthSession: ObservableObject {
 
-    enum State: Equatable {
+    enum State {
         case loading
         case unauthenticated
         case authenticated
         case sessionExpired
     }
 
-    private(set) var state: State = .loading
-    private(set) var hasPendingChanges: Bool = false
-    private let authService: AuthService
+    @Published private(set) var state: State = .loading
+    @Published private(set) var user: UserDTO?
 
-    init(modelContext: ModelContext) {
-        self.authService = AuthService(modelContext: modelContext)
-    }
+    private let storage = AuthStorage()
+    private let api = AuthAPI()
+    private let userAPI = UserAPI()
+
+    init() {}
 
     // MARK: - Bootstrap
 
-    /// Chamado na inicialização do app
     func bootstrap() async {
-        state = .loading
+        guard let refresh = storage.getRefreshToken() else {
+            state = .unauthenticated
+            return
+        }
 
         do {
-            try await authService.loadUserState()
+            let response = try await api.refresh(refreshToken: refresh)
+            storage.save(
+                accessToken: response.access_token,
+                refreshToken: response.refresh_token
+            )
+            let user = try await userAPI.getMe(
+                accessToken: response.access_token
+            )
+            self.user = user
             state = .authenticated
         } catch {
-            await handleBootstrapError(error)
-        }
-    }
-
-    private func handleBootstrapError(_ error: Error) async {
-        let authError = error as? AuthError
-
-        switch authError {
-        case .notAuthenticated,
-             .sessionExpired:
-            // Sessão expirada: dados preservados
+            storage.clear()
+            self.user = nil
             state = .sessionExpired
-
-        case .userDeleted,
-             .userInactive:
-            // Invalidação definitiva
-            await authService.logout()
-            state = .unauthenticated
-
-        default:
-            state = .unauthenticated
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Login
 
-    func login(email: String, password: String) async {
-        state = .loading
+    func login(email: String, password: String) async throws {
+        let response = try await api.login(email: email, password: password)
 
-        do {
-            try await authService.login(email: email, password: password)
-            await updatePendingChanges()
-            state = .authenticated
-        } catch {
-            await handle(error)
-        }
+        storage.save(
+            accessToken: response.access_token,
+            refreshToken: response.refresh_token
+        )
+        let user = try await userAPI.getMe(
+            accessToken: response.access_token
+        )
+        self.user = user
+        state = .authenticated
     }
 
-    func register(
-        userName: String,
-        email: String,
-        password: String,
-        crmNumberUf: String,
-        rqe: String?
-    ) async throws {
-        try await authService.register(
-            userName: userName,
-            email: email,
-            password: password,
-            crmNumberUf: crmNumberUf,
-            rqe: rqe
+    // MARK: - Register
+
+    func register(_ input: RegisterInput) async throws {
+        _ = try await api.register(input)
+    }
+    
+    // MARK: - Update User
+
+    func updateUser(_ input: UpdateUserInput) async throws {
+        guard let accessToken = storage.getAccessToken() else {
+            throw AuthError.sessionExpired
+        }
+
+        let updatedUser = try await userAPI.updateMe(
+            accessToken: accessToken,
+            payload: input
+        )
+
+        self.user = updatedUser
+    }
+
+    // MARK: - Related users
+
+    func fetchRelatedUsers(
+        company: String? = nil,
+        search: String? = nil
+    ) async throws -> [RelatedUserDTO] {
+        guard let accessToken = storage.getAccessToken() else {
+            throw AuthError.sessionExpired
+        }
+
+        return try await userAPI.getRelatedUsers(
+            accessToken: accessToken,
+            company: company,
+            search: search
         )
     }
 
-    func logout() async {
-        // Logout explícito: encerra sessão e apaga dados locais
-        await authService.logout()
+    // MARK: - Delete User
+
+    func deleteUser() async throws {
+        guard let accessToken = storage.getAccessToken() else {
+            throw AuthError.sessionExpired
+        }
+
+        try await userAPI.deleteMe(accessToken: accessToken)
+        await logout()
+    }
+    
+    // MARK: - Expired
+    
+    func acknowledgeSessionExpired() {
         state = .unauthenticated
     }
 
-    // MARK: - Error handling
+    // MARK: - Logout
 
-    private func handle(_ error: Error) async {
-
-        let authError = error as? AuthError
-
-        switch authError {
-
-        case .notAuthenticated,
-             .sessionExpired:
-            // Sessão expirada durante uso normal
-            state = .sessionExpired
-
-        case .userDeleted,
-             .userInactive:
-            // Backend invalidou definitivamente
-            await authService.logout()
-            state = .unauthenticated
-
-        case .invalidCredentials:
-            state = .unauthenticated
-
-        default:
-            state = .unauthenticated
-        }
-    }
-
-    private func updatePendingChanges() async {
-        do {
-            hasPendingChanges = try authService.hasPendingLocalChanges()
-        } catch {
-            hasPendingChanges = false
-        }
+    func logout() async {
+        storage.clear()
+        user = nil
+        state = .unauthenticated
     }
 }

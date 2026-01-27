@@ -16,14 +16,17 @@ O módulo de Auth Swift é responsável por:
 
 ### 2.1 Separação de Responsabilidades
 
-| Camada        | Responsabilidade |
-|---------------|------------------|
-| DTO           | Espelhar JSON do backend |
-| AuthAPI       | Comunicação HTTP |
-| TokenManager  | Gestão de tokens |
-| AuthService   | Orquestração de fluxo |
-| SwiftData     | Persistência local |
-| Sync Engine   | Sincronização de dados (entidades + Change Log) |
+| Camada          | Responsabilidade |
+|-----------------|------------------|
+| DTO             | Espelhar JSON do backend |
+| AuthAPI         | Comunicação HTTP |
+| TokenManager    | Gestão de tokens e validade da sessão |
+| AuthSession     | Estado da sessão (authenticated / sessionExpired / unauthenticated) |
+| AuthService     | Orquestração de fluxo |
+| SwiftData       | Persistência local |
+| ChangeLog       | Registro de intenções locais |
+| ChangeLogFactory| Semântica e deduplicação de intenções |
+| SyncManager     | Execução de sincronização |
 
 Nenhuma camada executa responsabilidades de outra.
 
@@ -92,6 +95,24 @@ AuthService não executa refresh manual nem armazena tokens.
 
 ---
 
+### 3.4 AuthSession (Implementado)
+
+AuthSession representa o **estado atual da sessão** como uma máquina de estados explícita.
+
+Estados possíveis:
+- `unauthenticated`
+- `authenticated`
+- `sessionExpired`
+
+Responsabilidades:
+- refletir o estado real da sessão
+- permitir UI reagir sem apagar dados
+- bloquear mutações quando necessário
+- integrar-se com o SyncManager
+
+AuthSession **não executa** login, refresh ou logout.
+Ela apenas representa estado.
+
 ## 4. Fluxos de Autenticação
 
 ### 4.1 Register
@@ -117,17 +138,17 @@ Usuário criado ≠ sessão criada.
 
 ### 4.3 Startup do App (Sessão Existente)
 
-1. App tenta validar sessão existente
-2. Se access token estiver expirado:
-   - sessão é marcada como `sessionExpired`
+1. App verifica AuthSession
+2. Se estado for `authenticated`:
+   - tenta validar access token
+3. Se access token estiver expirado:
+   - AuthSession → `sessionExpired`
    - dados locais são preservados
-3. Se refresh for bem-sucedido:
-   - sessão continua válida
-4. AuthService chama /users/me
-5. Estado do usuário é validado
-6. App decide continuar ou encerrar definitivamente
-
-Expiração de sessão NÃO implica logout automático.
+4. Se refresh for bem-sucedido:
+   - AuthSession permanece `authenticated`
+5. AuthService chama `/users/me`
+6. Estado do usuário é validado
+7. SyncManager pode operar se sessão válida
 
 ---
 
@@ -149,22 +170,17 @@ Expiração de sessão NÃO implica logout automático.
 
 ### 4.5 Relação entre Sessão e Sincronização (Modelo Híbrido)
 
-O módulo de Auth **NÃO executa sincronização de dados**.
+Auth define **se** o sync pode ocorrer.
+SyncManager define **como** o sync ocorre.
 
-A sincronização segue um **modelo híbrido**, conforme definido em `sync.md`:
+Regras:
+- Sessão válida → sync permitido
+- `sessionExpired` → sync bloqueado, dados preservados
+- Logout definitivo → dados removidos
+- Soft delete → limpeza imediata
 
-- Durante sessão válida:
-  - Sync de entidades (`needsSync`, `lastModified`) é permitido
-- Em expiração de sessão:
-  - Sessão torna-se inválida
-  - Dados locais são preservados
-  - Sync é bloqueado até reautenticação
-- Em soft delete / invalidação:
-  - Backend invalida tudo
-  - Auth força limpeza local
-
-Auth define **quando** o sync pode acontecer.  
-O Sync Engine define **como** o sync acontece.
+Auth **nunca** executa sync.
+Sync **nunca** decide estado de sessão.
 
 ---
 
@@ -186,15 +202,20 @@ Espelha o backend no formato:
 
 ### 5.2 AuthError
 
-Mapeia erros técnicos para decisões de domínio:
-- USER_INACTIVE
-- USER_DELETED
-- INVALID_CREDENTIALS
-- SESSION_EXPIRED
+AuthError representa decisões de domínio no app.
 
-TOKEN_EXPIRED e TOKEN_INVALID do backend são mapeados para SESSION_EXPIRED no app.
+Casos relevantes:
+- notAuthenticated
+- invalidCredentials
+- sessionExpired
+- userInactive
+- userDeleted
+- serverError
 
-Somente AuthService reage a esses erros.
+Erros de token do backend (`TOKEN_EXPIRED`, `TOKEN_INVALID`)
+são mapeados para `sessionExpired`.
+
+Somente AuthService e AuthSession reagem a esses erros.
 
 ---
 
@@ -326,13 +347,14 @@ Ações:
 
 ---
 
-### 10.5 Integração com Sync (Planejado)
+### 10.5 Integração com Sync (Implementado)
 
-Quando a sessão expirar e houver alterações locais pendentes:
-
-- O app **DEVE** preservar os dados
-- O app **DEVE** exigir login antes de sync
-- Após login, o app **DEVE** tentar sincronizar antes de qualquer limpeza
+- Expiração de sessão **NÃO** apaga dados
+- ChangeLog é preservado
+- SyncManager é bloqueado enquanto sessão inválida
+- Após reautenticação:
+  - AuthSession → `authenticated`
+  - SyncManager pode executar sync pendente
 
 ---
 

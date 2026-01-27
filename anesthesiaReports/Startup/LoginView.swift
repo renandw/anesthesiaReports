@@ -1,109 +1,105 @@
-//
-//  LoginView.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 25/01/26.
-//
-
 import SwiftUI
 
 struct LoginView: View {
-
-    @SwiftUI.Environment(AuthSession.self) private var authSession
-
-    @State private var email: String = ""
-    @State private var password: String = ""
+    
+    @EnvironmentObject private var session: AuthSession
+    
+    @State private var email = ""
+    @State private var password = ""
+    @State private var showPassword = false
     @State private var errorMessage: String?
-
-    @State private var isLoading = false
-
+    @State private var healthStatus: HealthStatus = .loading
+    
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
+        
+        VStack(spacing: 16) {
 
-                Text("Login")
-                    .font(.largeTitle)
-                    .bold()
-
-                VStack(spacing: 12) {
-
-                    TextField("Email", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-
-                    SecureField("Senha", text: $password)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                }
-
-                Button {
-                    Task {
-                        await login()
-                    }
-                } label: {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text("Entrar")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading || email.isEmpty || password.isEmpty)
-
-                NavigationLink("Criar conta") {
-                    RegisterView()
-                }
-                .padding(.top, 8)
-
-                Spacer()
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(healthStatus.color)
+                    .frame(width: 10, height: 10)
+                Text(healthStatus.text)
+                    .font(.caption)
+                    .foregroundColor(healthStatus.color)
             }
-            .padding()
+            
+            TextField("Email", text: $email)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+            
+            HStack {
+                Group {
+                    if showPassword {
+                        TextField("Senha", text: $password)
+                    } else {
+                        SecureField("Senha", text: $password)
+                    }
+                }
+                .textInputAutocapitalization(.never)
+                
+                Button(action: { showPassword.toggle() }) {
+                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+            }
+            
+            Button("Entrar") {
+                Task {
+                    do {
+                        print("➡️ Tentando login com email:", email)
+                        try await session.login(
+                            email: email,
+                            password: password
+                        )
+                        print("✅ Login concluído com sucesso")
+                    } catch let authError as AuthError {
+                        print("❌ AuthError recebido:", authError)
+                        errorMessage = authError.userMessage
+                    } catch {
+                        print("❌ Erro genérico recebido:", error)
+                        errorMessage = "Erro de rede"
+                    }
+                }
+            }
+            
+            NavigationLink("Criar conta") {
+                RegisterView()
+            }
+        }
+        .padding()
+        .task {
+            let api = HealthAPI()
+            healthStatus = await api.check()
+        }
+        
+    }
+}
+
+private extension HealthStatus {
+    var text: String {
+        switch self {
+        case .loading:
+            return "Verificando sistema..."
+        case .healthy:
+            return "Sistema online"
+        case .unhealthy:
+            return "Sistema indisponível"
         }
     }
 
-    // MARK: - Actions
-
-    private func login() async {
-        errorMessage = nil
-        isLoading = true
-
-        do {
-            await authSession.login(
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                password: password
-            )
-            // sucesso → AuthSession.state muda → StartupView troca a tela
-        } catch let error as AuthError {
-            errorMessage = message(for: error)
-        } catch {
-            errorMessage = "Erro inesperado. Tente novamente."
-        }
-
-        isLoading = false
-    }
-
-    private func message(for error: AuthError) -> String {
-        switch error {
-        case .sessionExpired:
-            return "Sua sessão expirou. Entre novamente."
-        case .invalidCredentials:
-            return "Email ou senha incorretos."
-        case .userInactive:
-            return "Conta desativada."
-        case .userDeleted:
-            return "Conta removida."
-        case .networkError:
-            return "Sem conexão com a internet."
-        default:
-            return "Não foi possível entrar."
+    var color: Color {
+        switch self {
+        case .loading:
+            return .secondary
+        case .healthy:
+            return .green
+        case .unhealthy:
+            return .red
         }
     }
 }

@@ -1,54 +1,28 @@
 import Foundation
-//
-//  AuthDTO.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 24/01/26.
-//
 
-// MARK: - Login
-struct LoginRequest: Codable {
-    let email: String
-    let password: String
-}
 
-struct LoginResponse: Codable {
+import Foundation
+
+// MARK: - Auth
+
+struct AuthResponse: Decodable {
     let access_token: String
     let refresh_token: String
+    let expires_in: String
 }
 
 // MARK: - Register
-struct RegisterRequest: Codable {
+
+struct RegisterInput: Encodable {
     let user_name: String
     let email: String
     let password: String
     let crm_number_uf: String
     let rqe: String?
+    let phone: String
+    let company: [String]
 }
 
-struct RegisterUserDTO: Codable {
-    let user_id: String
-    let user_name: String
-    let email: String
-    let crm_number_uf: String
-    let rqe: String?
-    let created_at: Date
-}
+// MARK: - Empty
 
-struct RegisterResponse: Codable {
-    let user: RegisterUserDTO
-}
-
-// MARK: - Refresh
-struct RefreshRequest: Codable {
-    let refresh_token: String
-}
-
-struct RefreshResponse: Codable {
-    let access_token: String
-    let refresh_token: String
-}
-
-struct MeResponse: Codable {
-    let user: UserDTO
-}
+struct EmptyResponse: Decodable {}

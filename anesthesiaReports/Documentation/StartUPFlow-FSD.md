@@ -60,6 +60,17 @@ Nenhuma View ou Service acessa tokens diretamente.
 
 ⸻
 
+3.4 HealthAPI (atual)
+
+Responsável por:
+• consultar GET /health
+• sinalizar healthy/unhealthy no app
+
+Obs: hoje o HealthAPI é usado diretamente pela StartupView e LoginView.
+Há um plano para evoluir isso para um HealthMonitor global (seção 10).
+
+⸻
+
 4. StartupView (ou AppBootstrapView)
 
 Responsabilidade
@@ -84,6 +95,13 @@ Passo 1 — App inicia
 • @main App cria uma instância de AuthSession
 • StartupView é exibida
 • AuthSession.bootstrap() é chamado
+
+⸻
+
+Passo 1.1 — Health check (novo)
+• StartupView chama HealthAPI.check()
+• Se healthy, segue para bootstrap
+• Se unhealthy, mostra “Sistema indisponível” e inicia polling automático
 
 ⸻
 
@@ -113,6 +131,7 @@ Erros considerados fatais:
 • USER_INACTIVE
 • USER_DELETED
 • erros de rede ou infraestrutura
+• sistema indisponível (health = unhealthy)
 
 Ações:
 • limpar tokens
@@ -146,6 +165,9 @@ unauthenticated       | LoginView
 authenticated         | DashboardView
 
 RegisterView é acessível apenas a partir da LoginView.
+
+Quando o sistema está indisponível (health = unhealthy),
+StartupView mostra a tela de indisponibilidade e tenta novamente em background.
 
 ⸻
 
@@ -193,6 +215,35 @@ Erros técnicos (rede, timeout, backend):
 
 Nenhuma View assume estado de autenticação.  
 Apenas o AuthSession decide.
+
+⸻
+
+10. Plano para HealthMonitor Global (robusto)
+
+Objetivo
+• centralizar o estado de saúde do backend
+• diferenciar “sem internet” vs “servidor indisponível”
+• evitar lógica de rede nas Views
+
+Proposta
+• Criar HealthMonitor (ObservableObject) com:
+  - @Published status: .unknown | .healthy | .serverDown | .offline
+  - polling configurável (ex: 15s ou 30s)
+  - cancelamento quando app vai background
+  - modo “burst” ao retornar para foreground
+• Usar NWPathMonitor para detectar conectividade local
+• Se offline: status = .offline (não chama /health)
+• Se online: chama /health e define .healthy ou .serverDown
+
+Integração
+• Injetar HealthMonitor no ambiente no @main
+• StartupView, LoginView e DashboardView consomem o mesmo estado
+• AuthSession usa HealthMonitor para decidir se tenta bootstrap
+
+Política de UI
+• Startup: bloqueia login enquanto .offline/.serverDown
+• Login: mostra badge de status (online/offline)
+• Dashboard: opcional mostrar banner discreto
 
 ⸻
 

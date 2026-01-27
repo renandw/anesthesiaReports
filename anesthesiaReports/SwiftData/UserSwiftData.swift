@@ -1,53 +1,37 @@
-//
-//  UserSwiftData.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 24/01/26.
-//
 import Foundation
 import SwiftData
 
+
 @Model
-final class User {
-
-    @Attribute(.unique) var userId: String
-
+final class UserModel {
+    @Attribute(.unique) var id: String
     var name: String
-    var emailAddress: String
+    var email: String
     var crm: String
     var rqe: String?
+    var isActive: Bool
 
-    var active: Bool
-    var isDeleted: Bool
-
+    // Metadados
     var createdAt: Date
     var updatedAt: Date
-    var statusChangedAt: Date
 
     init(
-        userId: String,
+        id: String,
         name: String,
-        emailAddress: String,
+        email: String,
         crm: String,
-        rqe: String? = nil,
-        active: Bool,
-        isDeleted: Bool,
+        rqe: String?,
+        isActive: Bool,
         createdAt: Date,
-        updatedAt: Date,
-        statusChangedAt: Date
+        updatedAt: Date
     ) {
-        self.userId = userId
+        self.id = id
         self.name = name
-        self.emailAddress = emailAddress
+        self.email = email
         self.crm = crm
         self.rqe = rqe
-        self.active = active
-        self.isDeleted = isDeleted
+        self.isActive = isActive
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.statusChangedAt = statusChangedAt
     }
 }
-
-
-

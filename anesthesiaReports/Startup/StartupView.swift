@@ -1,41 +1,75 @@
-//
-//  StartupView.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 25/01/26.
-//
-
-
 import SwiftUI
+import SwiftData
 
 struct StartupView: View {
 
-    @SwiftUI.Environment(AuthSession.self) private var authSession
+    @EnvironmentObject private var session: AuthSession
+    @State private var healthStatus: HealthStatus = .loading
+    @State private var didCheckHealth = false
+    @State private var didBootstrap = false
 
     var body: some View {
-        Group {
-            switch authSession.state {
-            case .loading:
-                VStack(spacing: 16) {
+        NavigationStack {
+            Group {
+                switch session.state {
+                case .loading:
                     ProgressView()
-                    Text("Carregando…")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    
+                case .unauthenticated:
+                    switch healthStatus {
+                    case .loading:
+                        ProgressView()
+                    case .healthy:
+                        LoginView()
+                    case .unhealthy:
+                        SystemUnavailableView()
+                    }
+                    
+                case .authenticated:
+                    DashboardView()
+                    
+                case .sessionExpired:
+                    SessionExpiredView()
                 }
-
-            case .unauthenticated:
-                LoginView()
-
-            case .authenticated:
-                DashboardView()
-                
-            case .sessionExpired:
-                SessionExpiredView()
+            }
+            .task {
+                if !didCheckHealth {
+                    didCheckHealth = true
+                    healthStatus = await HealthAPI().check()
+                }
+                if healthStatus == .unhealthy {
+                    await pollHealthUntilRecovered()
+                }
+                if session.state == .loading,
+                   healthStatus == .healthy,
+                   !didBootstrap {
+                    didBootstrap = true
+                    await session.bootstrap()
+                }
             }
         }
-        .task {
-            await authSession.bootstrap()
+    }
+
+    private func pollHealthUntilRecovered() async {
+        // If we later need global monitoring, extract this to a shared HealthMonitor
+        // that pushes state changes to all views (login, dashboard, etc).
+        while healthStatus == .unhealthy {
+            try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
+            let newStatus = await HealthAPI().check()
+            healthStatus = newStatus
         }
     }
 }
 
+private struct SystemUnavailableView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Sistema indisponível")
+                .font(.headline)
+            Text("Aguardando o serviço voltar...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+    }
+}

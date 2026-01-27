@@ -1,110 +1,69 @@
-//
-//  RegisterView.swift
-//  anesthesiaReports
-//
-//  Created by Renan Wrobel on 25/01/26.
-//
-
-
-//
-//  RegisterView.swift
-//  anesthesiaReports
-//
-
 import SwiftUI
 
 struct RegisterView: View {
 
-    @SwiftUI.Environment(AuthSession.self) private var authSession
+    @EnvironmentObject private var session: AuthSession
     @Environment(\.dismiss) private var dismiss
 
-    @State private var userName = ""
+    @State private var name = ""
     @State private var email = ""
     @State private var password = ""
-    @State private var crmNumberUf = ""
+    @State private var crm = ""
     @State private var rqe = ""
-
-    @State private var isLoading = false
+    @State private var phone = ""
+    @State private var companyText = ""
     @State private var errorMessage: String?
-    @State private var successMessage: String?
 
     var body: some View {
-        Form {
+        VStack(spacing: 16) {
 
-            Section("Dados pessoais") {
-                TextField("Nome", text: $userName)
-                TextField("Email", text: $email)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
-                    .autocorrectionDisabled()
-            }
+            TextField("Nome", text: $name)
+                .textInputAutocapitalization(.words)
+            TextField("Email", text: $email)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
 
-            Section("Credenciais") {
-                SecureField("Senha", text: $password)
-            }
+            SecureField("Senha", text: $password)
+            TextField("CRM", text: $crm)
+                .textInputAutocapitalization(.never)
+            TextField("RQE (opcional)", text: $rqe)
+            TextField("Telefone", text: $phone)
+                .keyboardType(.numberPad)
 
-            Section("Registro profissional") {
-                TextField("CRM / UF", text: $crmNumberUf)
-                TextField("RQE (opcional)", text: $rqe)
-            }
+            TextField("Empresas (separadas por vírgula)", text: $companyText)
 
             if let errorMessage {
-                Section {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                }
+                Text(errorMessage)
+                    .foregroundColor(.red)
             }
 
-            if let successMessage {
-                Section {
-                    Text(successMessage)
-                        .foregroundStyle(.green)
-                }
-            }
-
-            Section {
-                Button {
-                    Task { await register() }
-                } label: {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text("Cadastrar")
+            Button("Criar conta") {
+                Task {
+                    errorMessage = nil
+                    do {
+                        try await session.register(
+                            RegisterInput(
+                                user_name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                                password: password,
+                                crm_number_uf: crm.trimmingCharacters(in: .whitespacesAndNewlines),
+                                rqe: rqe.isEmpty ? nil : rqe,
+                                phone: phone,
+                                company: companyText
+                                    .split(separator: ",")
+                                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                                    .filter { !$0.isEmpty }
+                            )
+                        )
+                        dismiss() // volta para LoginView
+                    } catch let authError as AuthError {
+                        errorMessage = authError.userMessage
+                    } catch {
+                        errorMessage = "Erro de rede"
                     }
                 }
-                .disabled(isLoading)
             }
         }
-        .navigationTitle("Criar conta")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    // MARK: - Actions
-
-    private func register() async {
-        errorMessage = nil
-        successMessage = nil
-        isLoading = true
-
-        do {
-            try await authSession.register(
-                userName: userName,
-                email: email,
-                password: password,
-                crmNumberUf: crmNumberUf,
-                rqe: rqe.isEmpty ? nil : rqe
-            )
-
-            successMessage = "Conta criada com sucesso."
-            
-            // Pequeno delay só para UX (opcional)
-            try? await Task.sleep(for: .seconds(1))
-            dismiss()
-
-        } catch {
-            errorMessage = "Não foi possível criar a conta."
-        }
-
-        isLoading = false
+        .padding()
     }
 }
