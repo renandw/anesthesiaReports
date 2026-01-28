@@ -12,36 +12,36 @@ final class AuthSession: ObservableObject {
     }
 
     @Published private(set) var state: State = .loading
-    @Published private(set) var user: UserDTO?
 
-    private let storage = AuthStorage()
+    private let tokenManager = TokenManager.shared
+    private var userSession: UserSession?
     private let api = AuthAPI()
-    private let userAPI = UserAPI()
 
     init() {}
+
+    func attachUserSession(_ userSession: UserSession) {
+        self.userSession = userSession
+    }
 
     // MARK: - Bootstrap
 
     func bootstrap() async {
-        guard let refresh = storage.getRefreshToken() else {
+        guard tokenManager.refreshToken() != nil else {
             state = .unauthenticated
             return
         }
 
         do {
-            let response = try await api.refresh(refreshToken: refresh)
-            storage.save(
-                accessToken: response.access_token,
-                refreshToken: response.refresh_token
-            )
-            let user = try await userAPI.getMe(
-                accessToken: response.access_token
-            )
-            self.user = user
+            let response = try await tokenManager.refresh()
+            guard let userSession else {
+                state = .unauthenticated
+                return
+            }
+            try await userSession.loadUser()
             state = .authenticated
         } catch {
-            storage.clear()
-            self.user = nil
+            tokenManager.clear()
+            userSession?.clear()
             state = .sessionExpired
         }
     }
@@ -51,14 +51,15 @@ final class AuthSession: ObservableObject {
     func login(email: String, password: String) async throws {
         let response = try await api.login(email: email, password: password)
 
-        storage.save(
-            accessToken: response.access_token,
-            refreshToken: response.refresh_token
+        tokenManager.saveTokens(
+            access: response.access_token,
+            refresh: response.refresh_token
         )
-        let user = try await userAPI.getMe(
-            accessToken: response.access_token
-        )
-        self.user = user
+        guard let userSession else {
+            state = .unauthenticated
+            return
+        }
+        try await userSession.loadUser()
         state = .authenticated
     }
 
@@ -68,60 +69,32 @@ final class AuthSession: ObservableObject {
         _ = try await api.register(input)
     }
     
-    // MARK: - Update User
-
-    func updateUser(_ input: UpdateUserInput) async throws {
-        guard let accessToken = storage.getAccessToken() else {
-            throw AuthError.sessionExpired
-        }
-
-        let updatedUser = try await userAPI.updateMe(
-            accessToken: accessToken,
-            payload: input
-        )
-
-        self.user = updatedUser
-    }
-
-    // MARK: - Related users
-
-    func fetchRelatedUsers(
-        company: String? = nil,
-        search: String? = nil
-    ) async throws -> [RelatedUserDTO] {
-        guard let accessToken = storage.getAccessToken() else {
-            throw AuthError.sessionExpired
-        }
-
-        return try await userAPI.getRelatedUsers(
-            accessToken: accessToken,
-            company: company,
-            search: search
-        )
-    }
-
-    // MARK: - Delete User
-
-    func deleteUser() async throws {
-        guard let accessToken = storage.getAccessToken() else {
-            throw AuthError.sessionExpired
-        }
-
-        try await userAPI.deleteMe(accessToken: accessToken)
-        await logout()
-    }
-    
     // MARK: - Expired
     
     func acknowledgeSessionExpired() {
         state = .unauthenticated
     }
 
+    // MARK: - Fatal auth errors
+
+    func handleFatalAuthError(_ error: AuthError) {
+        guard error.isFatalSessionError else { return }
+        tokenManager.clear()
+        userSession?.clear()
+        state = .sessionExpired
+    }
+
     // MARK: - Logout
 
     func logout() async {
-        storage.clear()
-        user = nil
+        tokenManager.clear()
+        userSession?.clear()
         state = .unauthenticated
     }
+
+#if DEBUG
+    func setStateForPreview(_ state: State) {
+        self.state = state
+    }
+#endif
 }

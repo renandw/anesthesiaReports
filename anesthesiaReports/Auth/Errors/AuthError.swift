@@ -65,6 +65,24 @@ enum AuthError: Error {
 }
 
 extension AuthError {
+    var isRefreshable: Bool {
+        switch self {
+        case .sessionExpired:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var isFatalSessionError: Bool {
+        switch self {
+        case .sessionExpired, .unauthorized, .userInactive, .userDeleted:
+            return true
+        default:
+            return false
+        }
+    }
+
     var userMessage: String {
         switch self {
         case .userNotRegistered:

@@ -61,6 +61,40 @@ struct StartupView: View {
     }
 }
 
+#if DEBUG
+struct StartupView_Previews: PreviewProvider {
+    static var previews: some View {
+        let authSession = AuthSession()
+        let storage = AuthStorage()
+        let userSession = UserSession(storage: storage, authSession: authSession)
+        authSession.attachUserSession(userSession)
+
+        userSession.setUserForPreview(
+            UserDTO(
+                id: UUID().uuidString,
+                name: "Renan Wrobel",
+                email: "renandw@me.com",
+                crm: "CRM12345",
+                rqe: "123456",
+                phone: "69981328798",
+                company: [.known(.cma), .known(.clian)],
+                role: .admin,
+                isActive: true,
+                createdAt: Date(),
+                updatedAt: Date(),
+                statusChangedAt: Date(),
+                isDeleted: false
+            )
+        )
+        authSession.setStateForPreview(.authenticated)
+
+        return StartupView()
+            .environmentObject(authSession)
+            .environmentObject(userSession)
+    }
+}
+#endif
+
 private struct SystemUnavailableView: View {
     var body: some View {
         VStack(spacing: 12) {

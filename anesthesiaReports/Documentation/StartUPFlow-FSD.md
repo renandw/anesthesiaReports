@@ -26,6 +26,7 @@ Nenhuma tela de negócio é exibida antes da decisão do startup.
 ⸻
 
 3. Componentes Envolvidos
+Ver também: Documentação detalhada dos arquivos em `Documentation/Auth-Files.md`.
 
 3.1 AuthSession
 
@@ -39,16 +40,38 @@ AuthSession é a única fonte de verdade para o estado de login do app.
 
 ⸻
 
-3.2 AuthService
+3.2 AuthSession (ações explícitas)
 
 Responsável por:
 • executar ações explícitas (login, logout, register)
-• carregar o estado do usuário via GET /users/me
-• persistir e limpar dados locais (SwiftData)
+• orquestrar bootstrap com refresh
+• manter o estado global (loading, authenticated, unauthenticated)
+
+Obs: o AuthSession não expõe mais métodos de usuário.
 
 ⸻
 
-3.3 HTTPClient + TokenManager
+3.3 UserSession
+
+Responsável por:
+• carregar e manter o usuário atual
+• atualizar perfil (PATCH /users/me)
+• deletar conta (DELETE /users/me)
+• listar usuários relacionados (GET /users/related)
+
+UserSession depende de AuthStorage e UserAPI para usar o access token.
+
+⸻
+
+3.4 UserAPI
+
+Responsável por:
+• chamadas de usuário (GET /users/me, PATCH /users/me, DELETE /users/me, GET /users/related)
+• traduzir respostas para DTOs
+
+⸻
+
+3.5 HTTPClient + TokenManager
 
 Responsabilidades internas de infraestrutura:
 • adicionar Authorization automaticamente
@@ -60,7 +83,7 @@ Nenhuma View ou Service acessa tokens diretamente.
 
 ⸻
 
-3.4 HealthAPI (atual)
+3.6 HealthAPI (atual)
 
 Responsável por:
 • consultar GET /health
@@ -108,7 +131,7 @@ Passo 1.1 — Health check (novo)
 Passo 2 — Verificar sessão e estado do usuário
 
 AuthSession executa:
-authService.loadUserState()
+userSession.loadUser()
 
 Esse método:
 • chama GET /users/me
@@ -136,8 +159,8 @@ Erros considerados fatais:
 Ações:
 • limpar tokens
 • apagar dados locais
-• atualizar AuthSession.state = unauthenticated
-• navegar para LoginView
+• atualizar AuthSession.state = sessionExpired
+• navegar para SessionExpiredView
 
 Nenhuma tentativa adicional é feita.
 
@@ -163,6 +186,7 @@ Estado do AuthSession | View exibida
 loading               | StartupView
 unauthenticated       | LoginView
 authenticated         | DashboardView
+sessionExpired        | SessionExpiredView
 
 RegisterView é acessível apenas a partir da LoginView.
 
@@ -197,7 +221,7 @@ Ações:
 
 Erros técnicos (rede, timeout, backend):
 • tratados como sessão inválida no startup
-• redirecionamento para LoginView
+• redirecionamento para SessionExpiredView
 
 ⸻
 

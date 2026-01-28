@@ -18,9 +18,10 @@ Nenhuma view de domínio (negócio) participa deste fluxo.
 2. Princípios Gerais
 
 • O estado global de autenticação é controlado exclusivamente pelo AuthSession
+• UserSession é a fonte de dados do usuário autenticado
 • Views não tomam decisões de navegação baseadas em tokens ou respostas de API
 • Navegação é sempre derivada do estado (state-driven UI)
-• Nenhuma view acessa TokenManager, AuthService ou AuthAPI diretamente
+• Nenhuma view acessa TokenManager, AuthAPI ou UserAPI diretamente
 • Startup Views são simples, previsíveis e descartáveis
 
 ⸻
@@ -58,9 +59,15 @@ Ao ser exibida:
 
 Estados possíveis:
 • loading → exibe indicador de carregamento
-• unauthenticated → exibe LoginView
+• unauthenticated → exibe LoginView (se health ok) ou SystemUnavailableView
 • authenticated → exibe DashboardView
 • sessionExpired → exibe SessionExpiredView
+
+4.4 Health Check
+
+• StartupView consulta HealthAPI
+• Se unhealthy: exibe SystemUnavailableView e faz polling
+• Quando healthy: segue com bootstrap
 
 4.3 Restrições
 
@@ -172,19 +179,19 @@ A DashboardView representa o estado autenticado do app.
 8.2 Funcionalidades
 
 • exibe mensagem de boas-vindas
-• exibe dados básicos do usuário
+• exibe dados básicos do usuário (UserSession)
 • oferece ação explícita de logout
 
 8.3 Comportamento
 
-• Dados são lidos exclusivamente do armazenamento local (SwiftData)
+• Dados são lidos do UserSession (estado já carregado no bootstrap)
 • Logout dispara AuthSession.logout()
 • Navegação ocorre apenas pela mudança de AuthSession.state
 
 8.4 Restrições
 
 A DashboardView NÃO:
-• chama APIs
+• chama APIs diretamente
 • acessa tokens
 • controla navegação manualmente
 • executa lógica de autenticação
@@ -210,14 +217,25 @@ AuthSession.state = sessionExpired
 
 ⸻
 
-10. Regra de Ouro
+10. Views fora do Startup Flow (referência)
+
+As views abaixo são acessíveis a partir do estado authenticated, mas não
+fazem parte do Startup Flow:
+
+• UserDetailsView — detalhes e edição do usuário
+• EditUserView — edição simples de perfil
+• CanShareWithView — seleção de usuários relacionados (temporária)
+
+⸻
+
+11. Regra de Ouro
 
 Nenhuma Startup View decide o fluxo do app.
 Apenas o AuthSession altera o estado global.
 
 ⸻
 
-11. Conclusão
+12. Conclusão
 
 As Startup Views formam um fluxo previsível, desacoplado e orientado a estado.
 

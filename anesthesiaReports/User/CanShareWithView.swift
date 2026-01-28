@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CanShareWithView: View {
 
-    @EnvironmentObject private var session: AuthSession
+    @EnvironmentObject private var userSession: UserSession
 
     @State private var users: [RelatedUserDTO] = []
     @State private var selectedUser: RelatedUserDTO?
@@ -48,7 +48,8 @@ struct CanShareWithView: View {
             .listStyle(.plain)
 
             if selectedUser != nil {
-                Text("O usuário poderá ser adicionado ao sharedWith quando implementado")
+                let coworker = selectedUser?.name ?? "Desconhecido"
+                Text("O \(coworker)  poderá ser adicionado ao sharedWith quando implementado")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -63,11 +64,14 @@ struct CanShareWithView: View {
         let search = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let company = companyFilter.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            users = try await session.fetchRelatedUsers(
+            users = try await userSession.fetchRelatedUsers(
                 company: company.isEmpty ? nil : company,
                 search: search.isEmpty ? nil : search
             )
         } catch let authError as AuthError {
+            if authError.isFatalSessionError {
+                return
+            }
             errorMessage = authError.userMessage
         } catch {
             errorMessage = "Erro de rede"

@@ -20,7 +20,7 @@ struct RegisterInput: Encodable {
     let crm_number_uf: String
     let rqe: String?
     let phone: String
-    let company: [String]
+    let company: [Company]
 }
 
 // MARK: - Empty

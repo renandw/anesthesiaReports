@@ -10,7 +10,8 @@ struct UserDTO: Decodable {
     let crm: String
     let rqe: String?
     let phone: String
-    let company: [String]
+    let company: [Company]
+    let role: RoleEnum
     let isActive: Bool
     let createdAt: Date
     let updatedAt: Date
@@ -25,6 +26,7 @@ struct UserDTO: Decodable {
         case rqe
         case phone
         case company
+        case role
         case isActive = "active"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -49,7 +51,7 @@ struct UpdateUserInput: Encodable {
     let crm_number_uf: String?
     let rqe: String?
     let phone: String?
-    let company: [String]?
+    let company: [Company]?
 }
 
 // MARK: - Related users
@@ -59,7 +61,7 @@ struct RelatedUserDTO: Decodable, Identifiable {
     let name: String
     let crm: String
     let rqe: String?
-    let company: [String]
+    let company: [Company]
 
     enum CodingKeys: String, CodingKey {
         case id = "user_id"

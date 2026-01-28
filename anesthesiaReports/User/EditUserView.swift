@@ -3,6 +3,7 @@ import SwiftUI
 struct EditUserView: View {
 
     @EnvironmentObject private var session: AuthSession
+    @EnvironmentObject private var userSession: UserSession
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
@@ -77,13 +78,13 @@ struct EditUserView: View {
     // MARK: - Helpers
 
     private func loadInitialData() {
-        guard let user = session.user else { return }
+        guard let user = userSession.user else { return }
         name = user.name
         email = user.email
         crm = user.crm
         rqe = user.rqe ?? ""
         phone = user.phone
-        companyText = user.company.joined(separator: ", ")
+        companyText = user.company.rawJoined
     }
 
     private func updateUser() async {
@@ -92,17 +93,14 @@ struct EditUserView: View {
 
         do {
             print("➡️ Atualizando usuário (PATCH /users/me)...")
-            try await session.updateUser(
+            try await userSession.updateUser(
                 UpdateUserInput(
                     user_name: name,
                     email: email,
                     crm_number_uf: crm,
                     rqe: rqe.isEmpty ? nil : rqe,
                     phone: phone.isEmpty ? nil : phone,
-                    company: companyText
-                        .split(separator: ",")
-                        .map { $0.trimmingCharacters(in: .whitespaces) }
-                        .filter { !$0.isEmpty }
+                    company: .parse(from: companyText)
                 )
             )
             print("✅ Usuário atualizado com sucesso")
@@ -111,6 +109,9 @@ struct EditUserView: View {
         } catch let authError as AuthError {
             print("❌ AuthError no updateUser:", authError)
             successMessage = nil
+            if authError.isFatalSessionError {
+                return
+            }
             switch authError {
             case .invalidPayload:
                 errorMessage = "Dados inválidos"
@@ -131,7 +132,8 @@ struct EditUserView: View {
         defer { isLoading = false }
 
         do {
-            try await session.deleteUser()
+            try await userSession.deleteUser()
+            await session.logout()
             return true
         } catch {
             errorMessage = "Erro ao excluir conta"

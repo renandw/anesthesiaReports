@@ -3,32 +3,55 @@ import SwiftUI
 struct DashboardView: View {
 
     @EnvironmentObject private var session: AuthSession
+    @EnvironmentObject private var userSession: UserSession
 
     var body: some View {
-        VStack(spacing: 16) {
-
-            if let user = session.user {
-                Text("Bem-vindo, \(user.name)")
-                    .font(.headline)
-
-                Text(user.email)
-                    .foregroundColor(.secondary)
-                let rqe = user.rqe ?? ""
-                Text(rqe)
-            }
-
-            Button("Logout") {
-                Task {
-                    await session.logout()
+        ScrollView {
+            if let user = userSession.user {
+                VStack{
+                    VStack(alignment: .center, spacing: 16) {
+                        
+                        Text("Bem-vindo, \(user.name)")
+                            .font(.headline)
+                        
+                        Text(user.email)
+                            .foregroundColor(.secondary)
+                        
+                        Text(user.rqe ?? "")
+                        
+                        NavigationLink("Detalhes do Usuário") {
+                            UserDetailsView()
+                        }
+                        
+                        
+                        
+                        NavigationLink("Editar Usuário") {
+                            EditUserView()
+                        }
+                        NavigationLink("Compartilhar com") {
+                            CanShareWithView()
+                        }
+                        
+                        
+                    }
+                    .padding()
+                    .background(.white)
+                    .navigationTitle("Olá, \(user.name)")
+                    .frame(maxWidth: .infinity)
+                    
+                    Spacer()
+                    Button("Logout") {
+                        Task {
+                            await session.logout()
+                        }
+                    }
+                    .padding()
+                    .buttonStyle(.glassProminent)
                 }
             }
-            NavigationLink("Editar Usuário") {
-                EditUserView()
-            }
-            NavigationLink("Compartilhar com") {
-                CanShareWithView()
-            }
+            
+            
         }
-        .padding()
+        .background(Color(.tertiarySystemGroupedBackground))
     }
 }
