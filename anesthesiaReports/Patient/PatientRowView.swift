@@ -8,7 +8,7 @@ import SwiftUI
 
 struct PatientRowView: View {
     
-    let patient: PatientDTO
+    let patient: PatientSummary
     let numberCnsContext: numberCnsContext
     let ageContext: AgeContext
     

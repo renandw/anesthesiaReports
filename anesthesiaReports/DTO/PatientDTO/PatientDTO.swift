@@ -109,7 +109,7 @@ struct SharePatientInput: Encodable {
 
 struct PrecheckMatchDTO: Decodable, Identifiable {
     let patientId: String
-    let patientName: String
+    let name: String
     let sex: Sex
     let dateOfBirth: String
     let cns: String
@@ -122,7 +122,7 @@ struct PrecheckMatchDTO: Decodable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case patientId = "patient_id"
-        case patientName = "patient_name"
+        case name = "patient_name"
         case sex
         case dateOfBirth = "date_of_birth"
         case cns
@@ -136,3 +136,15 @@ struct PrecheckMatchDTO: Decodable, Identifiable {
 struct PrecheckPatientsResponse: Decodable {
     let matches: [PrecheckMatchDTO]
 }
+
+
+protocol PatientSummary {
+    var name: String { get }
+    var sex: Sex { get }
+    var dateOfBirth: String { get }
+    var cns: String { get }
+}
+
+extension PatientDTO: PatientSummary {}
+
+extension PrecheckMatchDTO: PatientSummary {}
