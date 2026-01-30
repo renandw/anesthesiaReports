@@ -17,6 +17,16 @@ struct EditRow: View {
             Spacer()
             TextField(label, text: $value)
                 .multilineTextAlignment(.trailing)
+            if !value.isEmpty {
+                Button {
+                    value = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Limpar \(label)")
+            }
         }
     }
 }

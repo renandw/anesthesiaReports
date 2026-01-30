@@ -4,18 +4,13 @@
 //
 //  Created by Renan Wrobel on 29/01/26.
 //
-
-
-import SwiftData
 import SwiftUI
 
 struct PatientRowView: View {
-    let patient: Patient
-    let numberCnsContext: numberCnsContex
+    
+    let patient: PatientDTO
+    let numberCnsContext: numberCnsContext
     let ageContext: AgeContext
-    //let surgery: Surgery? // será implementado quando tivermos o @model Surgery
-    
-    
     
     private func initials(from name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -36,6 +31,13 @@ struct PatientRowView: View {
         }
     }
     
+    private var ageText: String {
+        guard let birthDate = DateFormatterHelper.parseISODate(patient.dateOfBirth) else {
+            return "—"
+        }
+        return ageContext.ageString(from: birthDate)
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center, spacing: 12) {
@@ -48,44 +50,41 @@ struct PatientRowView: View {
                         .foregroundStyle(.white)
                 }
                 VStack(alignment: .leading) {
-                
                     Text(patient.name)
                         .font(.system(size: 17, weight: .medium, design: .rounded))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                
-                
+
                     HStack {
-//                        Image(systemName: patient.sex.sexImage)
-//                            .foregroundStyle(patient.sex.sexColor)
-                        
                         Text(patient.sex.sexStringDescription)
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        
+
                         Text("•")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        
-                        Text(patient.birthDate.formatted(date:.numeric, time: .omitted))
+
+                        Text(DateFormatterHelper
+                            .parseISODate(patient.dateOfBirth)
+                            .map { DateFormatterHelper.format($0, dateStyle: .medium) }
+                            ?? "")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        
+
                         Text("•")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        
-                        Text(ageContext.ageString(from: patient.birthDate))
+
+                        Text(ageText)
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        
                     }
-                    
+
                     if numberCnsContext == .needed {
                         HStack {
                             Text("CNS:")
@@ -99,7 +98,6 @@ struct PatientRowView: View {
                         }
                     }
                 }
-
             }
             .cornerRadius(12)
         }

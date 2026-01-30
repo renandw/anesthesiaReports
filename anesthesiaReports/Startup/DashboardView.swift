@@ -23,13 +23,12 @@ struct DashboardView: View {
                             UserDetailsView()
                         }
                         
-                        
+                        NavigationLink("Lista de Pacientes") {
+                            PatientsListView()
+                        }
                         
                         NavigationLink("Editar Usuário") {
                             EditUserView()
-                        }
-                        NavigationLink("Compartilhar com") {
-                            CanShareWithView()
                         }
                         
                         
