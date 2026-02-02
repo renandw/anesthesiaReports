@@ -25,6 +25,7 @@ struct SurgeryFormView: View {
     let patientId: String
     let existing: SurgeryDTO?
     let onComplete: ((SurgeryDTO) -> Void)?
+    private let cbhpmCatalog = SurgeryCbhpmSearchView.loadCatalogFromBundle()
 
     @State private var date: String = ""
     @State private var insuranceName = ""
@@ -42,6 +43,8 @@ struct SurgeryFormView: View {
     @State private var cbhpmProcedure = ""
     @State private var cbhpmPort = ""
     @State private var showCbhpmSheet = false
+    @State private var duplicateMatches: [PrecheckSurgeryMatchDTO] = []
+    @State private var showDuplicateSheet = false
 
     @State private var errorMessage: String?
     @State private var isLoading = false
@@ -61,6 +64,18 @@ struct SurgeryFormView: View {
             NavigationStack {
                 cbhpmSheetContent
             }
+        }
+        .sheet(isPresented: $showDuplicateSheet) {
+            SurgeryDuplicatePatientSheet(
+                message: "Você está cadastrando uma cirurgia que pode já existir no banco de dados. Revise para evitar registros duplicados.",
+                foundSurgeries: duplicateMatches,
+                onCreateNew: {
+                    Task { await createSurgeryEvenWithDuplicate() }
+                },
+                onSelect: { match in
+                    Task { await claimAndUse(match) }
+                }
+            )
         }
     }
 
@@ -174,6 +189,23 @@ struct SurgeryFormView: View {
 
     private var cbhpmSheetContent: some View {
         Form {
+            if !cbhpmCatalog.isEmpty {
+                Section {
+                    NavigationLink {
+                        SurgeryCbhpmSearchView(items: cbhpmCatalog) { selected in
+                            guard let first = selected.first else { return }
+                            cbhpmCode = first.code
+                            cbhpmProcedure = first.procedure
+                            cbhpmPort = first.port
+                        }
+                    } label: {
+                        Label("Buscar na Tabela CBHPM", systemImage: "magnifyingglass")
+                    }
+                } header: {
+                    Text("Catálogo")
+                }
+            }
+
             Section {
                 EditRow(label: "Código", value: $cbhpmCode)
                 EditRow(label: "Procedimento", value: $cbhpmProcedure)
@@ -330,6 +362,24 @@ struct SurgeryFormView: View {
                 )
                 onComplete?(updated)
             } else {
+                let matches = try await surgerySession.precheck(
+                    input: PrecheckSurgeryInput(
+                        patient_id: patientId,
+                        date: trimmedDate,
+                        type: type.rawValue,
+                        insurance_name: trimmedInsuranceName,
+                        hospital: trimmedHospital,
+                        main_surgeon: trimmedMainSurgeon,
+                        proposed_procedure: trimmedProposed
+                    )
+                )
+
+                if !matches.isEmpty {
+                    duplicateMatches = matches
+                    showDuplicateSheet = true
+                    return
+                }
+
                 let created = try await surgerySession.create(
                     CreateSurgeryInput(
                         patient_id: patientId,
@@ -350,6 +400,128 @@ struct SurgeryFormView: View {
                 onComplete?(created)
             }
 
+            if mode == .standalone {
+                dismiss()
+            }
+        } catch let authError as AuthError {
+            errorMessage = authError.userMessage
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
+    }
+
+    private func createSurgeryEvenWithDuplicate() async {
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+
+        let trimmedDate = DateFormatterHelper.normalizeISODateString(date)
+        let trimmedInsuranceName = insuranceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedInsuranceNumber = insuranceNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMainSurgeon = mainSurgeon.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedHospital = hospital.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedProposed = proposedProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedComplete = completeProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
+        let auxTrimmed = auxiliarySurgeonsText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedDate.isEmpty else {
+            errorMessage = "Data obrigatória"
+            return
+        }
+        guard !trimmedInsuranceName.isEmpty else {
+            errorMessage = "Convênio obrigatório"
+            return
+        }
+        guard !trimmedInsuranceNumber.isEmpty else {
+            errorMessage = "Número do convênio obrigatório"
+            return
+        }
+        guard !trimmedMainSurgeon.isEmpty else {
+            errorMessage = "Cirurgião principal obrigatório"
+            return
+        }
+        guard !trimmedHospital.isEmpty else {
+            errorMessage = "Hospital obrigatório"
+            return
+        }
+        guard !trimmedProposed.isEmpty else {
+            errorMessage = "Procedimento proposto obrigatório"
+            return
+        }
+
+        let weightValue = Double(weight.replacingOccurrences(of: ",", with: "."))
+        guard let weightValue else {
+            errorMessage = "Peso inválido"
+            return
+        }
+
+        let auxArray: [String]? = auxTrimmed.isEmpty
+            ? nil
+            : auxTrimmed
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+        let cbhpmInput: SurgeryCbhpmInput? = {
+            let code = cbhpmCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            let proc = cbhpmProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
+            let port = cbhpmPort.trimmingCharacters(in: .whitespacesAndNewlines)
+            if code.isEmpty && proc.isEmpty && port.isEmpty {
+                return nil
+            }
+            guard !code.isEmpty, !proc.isEmpty, !port.isEmpty else {
+                errorMessage = "CBHPM incompleto"
+                return nil
+            }
+            return SurgeryCbhpmInput(code: code, procedure: proc, port: port)
+        }()
+
+        if errorMessage != nil { return }
+
+        let valueAnesthesiaDouble: Double? = {
+            let trimmed = valueAnesthesia.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { return nil }
+            return Double(trimmed.replacingOccurrences(of: ",", with: "."))
+        }()
+
+        do {
+            let created = try await surgerySession.create(
+                CreateSurgeryInput(
+                    patient_id: patientId,
+                    date: trimmedDate,
+                    insurance_name: trimmedInsuranceName,
+                    insurance_number: trimmedInsuranceNumber,
+                    main_surgeon: trimmedMainSurgeon,
+                    auxiliary_surgeons: auxArray,
+                    hospital: trimmedHospital,
+                    weight: weightValue,
+                    proposed_procedure: trimmedProposed,
+                    complete_procedure: trimmedComplete.isEmpty ? nil : trimmedComplete,
+                    type: type.rawValue,
+                    cbhpm: cbhpmInput,
+                    financial: SurgeryFinancialInput(value_anesthesia: valueAnesthesiaDouble)
+                )
+            )
+            onComplete?(created)
+            if mode == .standalone {
+                dismiss()
+            }
+        } catch let authError as AuthError {
+            errorMessage = authError.userMessage
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
+    }
+
+    private func claimAndUse(_ match: PrecheckSurgeryMatchDTO) async {
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await surgerySession.claim(surgeryId: match.surgeryId)
+            let surgery = try await surgerySession.getById(match.surgeryId)
+            onComplete?(surgery)
             if mode == .standalone {
                 dismiss()
             }

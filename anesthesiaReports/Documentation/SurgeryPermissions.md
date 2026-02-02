@@ -50,6 +50,11 @@ WHERE (p.created_by = $userId OR sp.permission IN ('read','write'))
 ### 2.4 Compartilhamento
 - Somente `full_editor` ou `owner` podem compartilhar cirurgia.
 
+### 2.4.1 Proteção de owner (ajuste crítico)
+- Não é permitido rebaixar um share existente com `permission = owner`.
+- Não é permitido revogar (`DELETE`) o share `owner`.
+- Erro esperado: `SURGERY_SHARE_PRIVILEGED_FORBIDDEN`.
+
 ### 2.5 Cascata (revogação)
 - Ao revogar share no patient, todas as shares de surgery daquele patient são removidas para o usuário.
 
@@ -123,7 +128,24 @@ financial: canEditFinancial
 
 ## 4) Observações importantes
 
-- As permissões `pre_editor`, `ane_editor` e `srpa_editor` **já existem**, mas ainda não há campos específicos no schema para aplicá-las. Hoje, no backend, esses níveis não liberam update.
-- A UI reflete essa regra, mostrando opções de permissão mas bloqueando edição real para esses níveis.
+- As permissões `pre_editor`, `ane_editor` e `srpa_editor` **já existem** e hoje, no backend, entram na regra geral de edição (`permission != read`).
+- Como ainda não existem campos segmentados por módulo no schema, a edição continua sendo do bloco geral da cirurgia (não por seção específica).
+
+---
+
+## 5) Atualizações recentes (Backend + App)
+
+### 5.1 `GET /patients/:patientId/surgeries`
+- Quando o paciente existe, mas o usuário não tem acesso ao paciente, o backend retorna `403 SURGERY_PERMISSION_REQUIRED` (antes podia resultar em lista vazia).
+
+### 5.2 Fluxo de dedup/claim em cirurgia
+- Novo `POST /surgeries/precheck` para sugerir candidatas.
+- Novo `POST /surgeries/:surgeryId/claim` para conceder `full_editor` sem alterar `owner`.
+- No app:
+  - `SurgeryAPI`/`SurgerySession` expõem `precheck` e `claim`.
+  - `SurgeryFormView` usa precheck antes de criar.
+  - `SurgeryDuplicatePatientSheet` oferece:
+    - **Selecionar cirurgia** (claim + abrir cirurgia)
+    - **Criar nova mesmo assim**
 
 ---

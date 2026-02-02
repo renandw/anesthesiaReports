@@ -87,3 +87,53 @@ Decisão: manter o criador visível, porém **sem interação**:
 ## ✅ Observação — “Selecionar existente”
 O botão **Selecionar existente** será utilizado em uma etapa futura para fluxos adicionais.
 No momento, ele apenas executa o `claim` e carrega o paciente para navegação padrão.
+
+---
+
+# Dedup de Cirurgia — Implementado
+
+## ✅ Objetivo
+Evitar múltiplas cirurgias para o mesmo paciente e mesmo contexto, mantendo o fluxo simples:
+- selecionar cirurgia existente
+- ou criar nova mesmo assim
+
+---
+
+## ✅ Fluxo atual (app)
+1. Usuário preenche formulário de cirurgia.
+2. Antes de criar, o app chama `POST /surgeries/precheck`.
+3. Se `matches` vazio → cria normalmente.
+4. Se houver `matches` → abre `SurgeryDuplicatePatientSheet`.
+5. Ações no sheet:
+   - **Selecionar Cirurgia** → `POST /surgeries/:surgeryId/claim` + `GET /surgeries/:id`
+   - **Criar Nova Mesmo Assim** → `POST /surgeries`
+
+---
+
+## ✅ Campos exibidos para comparação
+No sheet de cirurgia o app mostra:
+- `proposed_procedure`
+- `date`
+- `hospital`
+- `insurance_name`
+- `main_surgeon`
+
+Também exibe `match_score` retornado pelo backend.
+
+---
+
+## ✅ DTOs e APIs adicionados (iOS)
+- `PrecheckSurgeryInput`
+- `PrecheckSurgeryMatchDTO`
+- `PrecheckSurgeriesResponse`
+- `SurgeryAPI.precheck(input:)`
+- `SurgeryAPI.claim(surgeryId:)`
+- `SurgerySession.precheck(input:)`
+- `SurgerySession.claim(surgeryId:)`
+
+---
+
+## ✅ Regras críticas alinhadas com backend
+- Claim em cirurgia concede acesso de edição (`full_editor`) para o usuário que selecionou a cirurgia existente.
+- Claim **não** altera `owner`.
+- `owner` não pode ser rebaixado nem revogado (`SURGERY_SHARE_PRIVILEGED_FORBIDDEN`).

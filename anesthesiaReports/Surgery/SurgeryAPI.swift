@@ -47,6 +47,26 @@ struct SurgeryAPI {
         return decoded.surgery
     }
 
+    // MARK: - Dedup
+
+    func precheck(input: PrecheckSurgeryInput) async throws -> [PrecheckSurgeryMatchDTO] {
+        let decoded: PrecheckSurgeriesResponse = try await client.request(
+            path: "/surgeries/precheck",
+            method: "POST",
+            body: input,
+            requiresAuth: true
+        )
+        return decoded.matches
+    }
+
+    func claim(surgeryId: String) async throws {
+        _ = try await client.request(
+            path: "/surgeries/\(surgeryId)/claim",
+            method: "POST",
+            requiresAuth: true
+        ) as EmptyResponse
+    }
+
     func update(surgeryId: String, input: UpdateSurgeryInput) async throws -> SurgeryDTO {
         let decoded: SurgeryResponse = try await client.request(
             path: "/surgeries/\(surgeryId)",

@@ -94,6 +94,34 @@ struct SurgeryCbhpmDTO: Decodable {
     let code: String
     let procedure: String
     let port: String
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case procedure
+        case port
+        case codigo
+        case procedimento
+        case porte_anestesico
+    }
+
+    init(code: String, procedure: String, port: String) {
+        self.code = code
+        self.procedure = procedure
+        self.port = port
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.code =
+            try container.decodeIfPresent(String.self, forKey: .code) ??
+            container.decode(String.self, forKey: .codigo)
+        self.procedure =
+            try container.decodeIfPresent(String.self, forKey: .procedure) ??
+            container.decode(String.self, forKey: .procedimento)
+        self.port =
+            try container.decodeIfPresent(String.self, forKey: .port) ??
+            container.decode(String.self, forKey: .porte_anestesico)
+    }
 }
 
 struct SurgeryFinancialDTO: Decodable {
@@ -190,4 +218,48 @@ struct SurgerySharesResponse: Decodable {
 struct ShareSurgeryInput: Encodable {
     let user_id: String
     let permission: String
+}
+
+// MARK: - Dedup DTOs
+
+struct PrecheckSurgeryInput: Encodable {
+    let patient_id: String
+    let date: String
+    let type: String
+    let insurance_name: String
+    let hospital: String
+    let main_surgeon: String
+    let proposed_procedure: String
+}
+
+struct PrecheckSurgeryMatchDTO: Decodable, Identifiable {
+    let surgeryId: String
+    let surgeryIdLastDigits: String
+    let patientId: String
+    let date: String
+    let type: String
+    let insuranceName: String
+    let hospital: String
+    let mainSurgeon: String
+    let proposedProcedure: String
+    let matchScore: Int
+
+    var id: String { surgeryId }
+
+    enum CodingKeys: String, CodingKey {
+        case surgeryId = "surgery_id"
+        case surgeryIdLastDigits = "surgery_id_last_digits"
+        case patientId = "patient_id"
+        case date
+        case type
+        case insuranceName = "insurance_name"
+        case hospital
+        case mainSurgeon = "main_surgeon"
+        case proposedProcedure = "proposed_procedure"
+        case matchScore = "match_score"
+    }
+}
+
+struct PrecheckSurgeriesResponse: Decodable {
+    let matches: [PrecheckSurgeryMatchDTO]
 }

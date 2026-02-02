@@ -54,6 +54,26 @@ final class SurgerySession: ObservableObject {
         }
     }
 
+    // MARK: - Dedup
+
+    func precheck(input: PrecheckSurgeryInput) async throws -> [PrecheckSurgeryMatchDTO] {
+        do {
+            return try await api.precheck(input: input)
+        } catch let authError as AuthError {
+            authSession.handleFatalAuthError(authError)
+            throw authError
+        }
+    }
+
+    func claim(surgeryId: String) async throws {
+        do {
+            try await api.claim(surgeryId: surgeryId)
+        } catch let authError as AuthError {
+            authSession.handleFatalAuthError(authError)
+            throw authError
+        }
+    }
+
     func update(surgeryId: String, input: UpdateSurgeryInput) async throws -> SurgeryDTO {
         do {
             let surgery = try await api.update(surgeryId: surgeryId, input: input)
