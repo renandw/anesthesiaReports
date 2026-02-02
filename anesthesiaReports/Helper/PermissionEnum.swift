@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum Permission: String, Codable, Hashable, Identifiable {
+enum PatientPermission: String, Codable, Hashable, Identifiable {
     case read
     case write
     case unknown
@@ -35,6 +35,47 @@ enum Permission: String, Codable, Hashable, Identifiable {
             return .blue
         case .write:
             return .green
+        case .unknown:
+            return .secondary
+        }
+    }
+}
+
+extension PatientRole {
+    var displayName: String {
+        switch self {
+        case .owner:
+            return "Criador"
+        case .editor:
+            return "Editor"
+        case .shared:
+            return "Compartilhado"
+        case .unknown:
+            return "Sem Papel"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .owner:
+            return "crown.fill"
+        case .editor:
+            return "pencil.circle.fill"
+        case .shared:
+            return "person.2.fill"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .owner:
+            return .orange
+        case .editor:
+            return .blue
+        case .shared:
+            return .secondary
         case .unknown:
             return .secondary
         }

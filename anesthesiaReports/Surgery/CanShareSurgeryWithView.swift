@@ -1,27 +1,27 @@
 import SwiftUI
 
-struct CanShareWithView: View {
+struct CanShareSurgeryWithView: View {
 
     @EnvironmentObject private var userSession: UserSession
-    @EnvironmentObject private var patientSession: PatientSession
+    @EnvironmentObject private var surgerySession: SurgerySession
     @Environment(\.dismiss) private var dismiss
 
     @State private var users: [RelatedUserDTO] = []
     @State private var searchText = ""
     @State private var companyFilter: String = "all"
-    @State private var shares: [PatientShareDTO] = []
+    @State private var shares: [SurgeryShareDTO] = []
     @State private var isLoadingUsers = false
     @State private var isLoadingShares = false
-    @State private var isSharing = false
-    @State private var isRevoking = false
     @State private var updatingUserIds: Set<String> = []
     @State private var shakeTokens: [String: Int] = [:]
     @State private var hasLoaded = false
     @State private var hasLoadError = false
+    @State private var errorMessage: String?
     @State private var searchTask: Task<Void, Never>?
 
+    let surgeryId: String
+    let createdById: String
     let patientId: String
-    let createdById: String?
 
     var body: some View {
         ZStack {
@@ -33,18 +33,17 @@ struct CanShareWithView: View {
                         .font(.system(size: 40))
                         .foregroundStyle(.blue)
                         .fontWeight(.semibold)
-                    
-                    Text("Compartilhar com Anestesistas")
+
+                    Text("Compartilhar Cirurgia")
                         .font(.headline)
-                    
-                    Text("Selecione um colega para compartilhar este paciente")
+
+                    Text("Selecione um colega para compartilhar esta cirurgia")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding()
-                
-                
+
                 HStack {
                     Picker("Empresa", selection: $companyFilter) {
                         Text("Todas").tag("all")
@@ -55,7 +54,7 @@ struct CanShareWithView: View {
                     .pickerStyle(.segmented)
                 }
                 .padding()
-                
+
                 Group {
                     if (isLoadingUsers || isLoadingShares) && users.isEmpty {
                         List(0..<6, id: \.self) { _ in
@@ -65,15 +64,15 @@ struct CanShareWithView: View {
                         .redacted(reason: .placeholder)
                         .shimmering()
                     } else if hasLoadError {
-                        List{
+                        List {
                             ContentUnavailableView(
                                 "Erro ao carregar usuários",
                                 systemImage: "exclamationmark.triangle",
-                                description: Text("Tente novamente mais tarde")
+                                description: Text(errorMessage ?? "Tente novamente mais tarde")
                             )
                         }
                     } else if users.isEmpty && !isLoadingUsers {
-                        List{
+                        List {
                             ContentUnavailableView(
                                 "Nenhum usuário encontrado",
                                 systemImage: "person.2.slash",
@@ -83,13 +82,12 @@ struct CanShareWithView: View {
                     } else {
                         List(users) { user in
                             let share = shareFor(userId: user.id)
-                            UserShareRow(
+                            SurgeryShareRow(
                                 user: user,
                                 share: share,
                                 isUpdating: updatingUserIds.contains(user.id),
                                 shakeToken: shakeTokens[user.id, default: 0],
                                 isOwner: user.id == createdById,
-                                isEditor: share?.grantedBy == user.id,
                                 onSelect: { newPermission in
                                     Task { await updatePermission(for: user, to: newPermission) }
                                 },
@@ -106,7 +104,7 @@ struct CanShareWithView: View {
                     Button("Cancelar", systemImage: "xmark") { dismiss() }
                 }
             }
-            .navigationTitle("Compartilhar Paciente")
+            .navigationTitle("Compartilhar Cirurgia")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Buscar por nome")
             .onChange(of: searchText) { _, _ in
@@ -127,6 +125,7 @@ struct CanShareWithView: View {
 
     private func loadUsers() async {
         hasLoadError = false
+        errorMessage = nil
         isLoadingUsers = true
         let search = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let company = companyFilter == "all" ? nil : companyFilter
@@ -139,20 +138,21 @@ struct CanShareWithView: View {
             if authError.isFatalSessionError {
                 return
             }
+            errorMessage = authError.userMessage
             hasLoadError = true
         } catch {
+            errorMessage = "Erro de rede"
             hasLoadError = true
         }
         isLoadingUsers = false
     }
 
     private func share(with user: RelatedUserDTO, permission: String) async {
-        isSharing = true
         updatingUserIds.insert(user.id)
         do {
-            try await patientSession.share(
-                patientId: patientId,
-                input: SharePatientInput(
+            try await surgerySession.share(
+                surgeryId: surgeryId,
+                input: ShareSurgeryInput(
                     user_id: user.id,
                     permission: permission
                 )
@@ -162,49 +162,53 @@ struct CanShareWithView: View {
             if authError.isFatalSessionError {
                 return
             }
+            errorMessage = authError.userMessage
             triggerShake(for: user.id)
         } catch {
+            errorMessage = "Erro de rede"
             triggerShake(for: user.id)
         }
         updatingUserIds.remove(user.id)
-        isSharing = false
     }
 
     private func loadShares() async {
+        errorMessage = nil
         isLoadingShares = true
         do {
-            shares = try await patientSession.listShares(patientId: patientId)
+            shares = try await surgerySession.listShares(surgeryId: surgeryId)
         } catch let authError as AuthError {
             if authError.isFatalSessionError {
                 return
             }
+            errorMessage = authError.userMessage
             hasLoadError = true
         } catch {
+            errorMessage = "Erro de rede"
             hasLoadError = true
         }
         isLoadingShares = false
     }
 
-    private func shareFor(userId: String) -> PatientShareDTO? {
+    private func shareFor(userId: String) -> SurgeryShareDTO? {
         shares.first(where: { $0.userId == userId })
     }
 
     private func revoke(userId: String) async {
-        isRevoking = true
         updatingUserIds.insert(userId)
         do {
-            try await patientSession.revokeShare(patientId: patientId, userId: userId)
+            try await surgerySession.revoke(surgeryId: surgeryId, userId: userId)
             await loadShares()
         } catch let authError as AuthError {
             if authError.isFatalSessionError {
                 return
             }
+            errorMessage = authError.userMessage
             triggerShake(for: userId)
         } catch {
+            errorMessage = "Erro de rede"
             triggerShake(for: userId)
         }
         updatingUserIds.remove(userId)
-        isRevoking = false
     }
 
     private func updatePermission(for user: RelatedUserDTO, to permission: String) async {
@@ -234,56 +238,16 @@ struct CanShareWithView: View {
     }
 }
 
-private struct UserShareRow: View {
+private struct SurgeryShareRow: View {
     let user: RelatedUserDTO
-    let share: PatientShareDTO?
+    let share: SurgeryShareDTO?
     let isUpdating: Bool
     let shakeToken: Int
     let isOwner: Bool
-    let isEditor: Bool
     let onSelect: (String) -> Void
     let onRevokeRequested: () -> Void
 
     @State private var showRevokeAlert = false
-
-    init(
-        user: RelatedUserDTO,
-        share: PatientShareDTO?,
-        isUpdating: Bool,
-        shakeToken: Int,
-        isOwner: Bool,
-        isEditor: Bool,
-        onSelect: @escaping (String) -> Void,
-        onRevokeRequested: @escaping () -> Void
-    ) {
-        self.user = user
-        self.share = share
-        self.isUpdating = isUpdating
-        self.shakeToken = shakeToken
-        self.isOwner = isOwner
-        self.isEditor = isEditor
-        self.onSelect = onSelect
-        self.onRevokeRequested = onRevokeRequested
-    }
-    
-    private func initials(from name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = trimmed.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-        guard !parts.isEmpty else { return "" }
-        if parts.count == 1 {
-            if let firstChar = parts[0].first {
-                return String(firstChar).uppercased()
-            } else {
-                return ""
-            }
-        } else {
-            let firstPart = parts.first!
-            let lastPart = parts.last!
-            let firstInitial = firstPart.first.map { String($0) } ?? ""
-            let lastInitial = lastPart.first.map { String($0) } ?? ""
-            return (firstInitial + lastInitial).uppercased()
-        }
-    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -293,7 +257,7 @@ private struct UserShareRow: View {
                 .overlay {
                     Text(initials(from: user.name))
                         .font(.headline.bold())
-                        .foregroundStyle(isShared ? .green : .blue)                        
+                        .foregroundStyle(isShared ? .green : .blue)
                 }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -326,12 +290,12 @@ private struct UserShareRow: View {
 
             Spacer()
 
-            if isOwner || isEditor {
-                Image(systemName: isOwner ? "checkmark.circle.fill" : "pencil.circle.fill")
+            if isOwner {
+                Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
                     .fontWeight(.bold)
-                    .foregroundStyle(isOwner ? .green : .blue)
-                    .accessibilityLabel(isOwner ? "Criador do paciente" : "Editor do paciente")
+                    .foregroundStyle(.green)
+                    .accessibilityLabel("Criador da cirurgia")
             } else {
                 Menu {
                     Button {
@@ -340,9 +304,24 @@ private struct UserShareRow: View {
                         Label("Leitura", systemImage: "eye")
                     }
                     Button {
-                        onSelect("write")
+                        onSelect("pre_editor")
                     } label: {
-                        Label("Escrita", systemImage: "pencil")
+                        Label("Pré‑anestesia", systemImage: "stethoscope")
+                    }
+                    Button {
+                        onSelect("ane_editor")
+                    } label: {
+                        Label("Anestesia", systemImage: "syringe")
+                    }
+                    Button {
+                        onSelect("srpa_editor")
+                    } label: {
+                        Label("SRPA", systemImage: "bed.double")
+                    }
+                    Button {
+                        onSelect("full_editor")
+                    } label: {
+                        Label("Editor completo", systemImage: "pencil")
                     }
                     Button(role: .destructive) {
                         if isShared {
@@ -352,7 +331,7 @@ private struct UserShareRow: View {
                         Label("Sem Permissão", systemImage: "nosign")
                     }
                 } label: {
-                    PermissionBadgeView(permission: currentPermission, isUpdating: isUpdating)
+                    SurgeryPermissionBadgeView(permission: currentPermission, isUpdating: isUpdating)
                 }
             }
         }
@@ -363,7 +342,7 @@ private struct UserShareRow: View {
                 onRevokeRequested()
             }
         } message: {
-            Text("O usuário não mais poderá ter acesso a esse paciente.")
+            Text("O usuário não mais poderá ter acesso a essa cirurgia.")
         }
     }
 
@@ -371,8 +350,27 @@ private struct UserShareRow: View {
         share != nil
     }
 
-    private var currentPermission: PatientPermission {
-        share?.permission ?? .unknown
+    private var currentPermission: SurgeryPermission {
+        share?.resolvedPermission ?? .unknown
+    }
+
+    private func initials(from name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmed.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        guard !parts.isEmpty else { return "" }
+        if parts.count == 1 {
+            if let firstChar = parts[0].first {
+                return String(firstChar).uppercased()
+            } else {
+                return ""
+            }
+        } else {
+            let firstPart = parts.first!
+            let lastPart = parts.last!
+            let firstInitial = firstPart.first.map { String($0) } ?? ""
+            let lastInitial = lastPart.first.map { String($0) } ?? ""
+            return (firstInitial + lastInitial).uppercased()
+        }
     }
 }
 
@@ -424,12 +422,16 @@ private struct ShakeEffect: GeometryEffect {
     let storage = AuthStorage()
     let userSession = UserSession(storage: storage, authSession: authSession)
     authSession.attachUserSession(userSession)
-    let patientSession = PatientSession(authSession: authSession, api: PatientAPI())
+    let surgerySession = SurgerySession(authSession: authSession, api: SurgeryAPI())
 
     return NavigationStack {
-        CanShareWithView(patientId: UUID().uuidString, createdById: nil)
-            .environmentObject(userSession)
-            .environmentObject(patientSession)
+        CanShareSurgeryWithView(
+            surgeryId: UUID().uuidString,
+            createdById: UUID().uuidString,
+            patientId: UUID().uuidString
+        )
+        .environmentObject(userSession)
+        .environmentObject(surgerySession)
     }
 }
 #endif

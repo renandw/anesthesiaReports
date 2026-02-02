@@ -1,88 +1,62 @@
 import SwiftUI
 
-struct FormDatePickerField: View {
+struct DateOnlyPickerSheetButton: View {
 
-    let title: String
+    // ISO: "yyyy-MM-dd" ("" = vazio)
+    @Binding var isoDate: String
 
-    @Binding var value: String   // ISO: "" = vazio
+    var title: String
+    var placeholder: String = "Selecionar"
 
-    var required: Bool = false
-    var errorMessage: String? = nil
+    var minDate: Date? = nil
+    var maxDate: Date? = nil
 
-
-    // Picker
     @State private var showPicker = false
-    @State private var tempDate: Date?
+    @State private var tempDate: Date? = nil
 
 
     var body: some View {
 
-        VStack(alignment: .leading, spacing: 6) {
+        Button {
 
-            // Label
+            // String → Date (se existir)
+            if let parsed = Self.isoFormatter.date(from: isoDate),
+               !isoDate.isEmpty {
+
+                tempDate = parsed
+
+            } else {
+
+                tempDate = Date()
+            }
+
+            showPicker = true
+
+        } label: {
+
             HStack {
 
                 Text(title)
-                    .font(.subheadline)
 
-                if required {
-                    Text("*")
-                        .foregroundStyle(.red)
-                }
-            }
+                Spacer()
 
+                if let date = Self.isoFormatter.date(from: isoDate),
+                   !isoDate.isEmpty {
 
-            // Campo clicável
-            Button {
+                    Text(Self.displayFormatter.string(from: date))
+                        .foregroundStyle(.tint)
+                        .fontWeight(.semibold)
 
-                if let parsed = Self.isoFormatter.date(from: value),
-                   !value.isEmpty {
-
-                    tempDate = parsed
                 } else {
-                    tempDate = Date()
-                }
 
-                showPicker = true
-
-            } label: {
-
-                HStack {
-
-                    if let date = Self.isoFormatter.date(from: value),
-                       !value.isEmpty {
-
-                        Text(Self.displayFormatter.string(from: date))
-                            .foregroundStyle(.primary)
-
-                    } else {
-
-                        Text("Selecionar")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "calendar")
+                    Text(placeholder)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(borderColor, lineWidth: 1)
-                )
             }
-            .buttonStyle(.plain)
-
-
-            // Erro
-            if isInvalid, let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
 
 
         // Sheet
@@ -98,32 +72,40 @@ struct FormDatePickerField: View {
                             get: { tempDate ?? Date() },
                             set: { tempDate = $0 }
                         ),
+                        in: (minDate ?? .distantPast)...(maxDate ?? .distantFuture),
                         displayedComponents: [.date]
                     )
                     .datePickerStyle(.wheel)
                     .labelsHidden()
+                    .environment(\.locale, Locale(identifier: "pt_BR"))
                 }
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
 
                 .toolbar {
 
+                    // Cancelar
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancelar") {
                             showPicker = false
                         }
+                        .tint(.red)
                     }
 
+                    // Confirmar
                     ToolbarItem(placement: .confirmationAction) {
 
                         Button("OK") {
 
-                            if let d = tempDate {
-                                value = Self.isoFormatter.string(from: d)
+                            if let confirmed = tempDate {
+
+                                // Date → ISO
+                                isoDate = Self.isoFormatter.string(from: confirmed)
                             }
 
                             showPicker = false
                         }
+                        .tint(.blue)
                     }
                 }
                 .padding()
@@ -133,31 +115,28 @@ struct FormDatePickerField: View {
     }
 
 
-    // MARK: - Validation
-
-    private var isInvalid: Bool {
-        required && value.isEmpty
-    }
-
-    private var borderColor: Color {
-        isInvalid ? .red : .secondary.opacity(0.4)
-    }
-
-
     // MARK: - Formatters
 
+    /// yyyy-MM-dd (ISO seguro)
     static let isoFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .gmt
+        //f.timeZone = TimeZone(secondsFromGMT: 0)
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
 
+
+    /// Exibição amigável
     static let displayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "pt_BR")
         f.dateStyle = .medium
         return f
     }()
+}
+
+#Preview {
+    @State var date: String = "2024-12-15"
+    DateOnlyPickerSheetButton(isoDate: $date, title: "Data de Nascimento")
 }

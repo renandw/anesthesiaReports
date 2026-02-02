@@ -19,6 +19,19 @@ struct UserDetailsView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
     @State private var isLoading = false
+    @State private var showValidationErrors = false
+    @State private var touchedFields: Set<Field> = []
+
+    private enum Field: Hashable {
+        case name
+        case email
+        case crm
+        case rqe
+        case phone
+        case company
+    }
+
+    @FocusState private var focusedField: Field?
     
     var body: some View {
         Form {
@@ -26,10 +39,40 @@ struct UserDetailsView: View {
                 Section {
                     if isEditing {
                         EditRow(label: "Nome", value: $name)
+                            .focused($focusedField, equals: .name)
+                        if shouldShowError(for: .name), let message = nameError {
+                            Text(message).foregroundColor(.red).font(.caption)
+                        }
                         EditRow(label: "e-mail", value: $email)
+                            .focused($focusedField, equals: .email)
+                        if shouldShowError(for: .email), let message = emailError {
+                            Text(message).foregroundColor(.red).font(.caption)
+                        }
                         EditRow(label: "CRM", value: $crm)
+                            .focused($focusedField, equals: .crm)
+                        if shouldShowError(for: .crm), let message = crmError {
+                            Text(message).foregroundColor(.red).font(.caption)
+                        }
                         EditRow(label: "RQE", value: $rqe)
-                        EditRow(label: "Telefone", value: $phone)
+                            .focused($focusedField, equals: .rqe)
+                            .keyboardType(.numberPad)
+                        HStack {
+                            Text("Telefone")
+                                .fontWeight(.bold)
+                            Spacer()
+                            TextField("Telefone", text: Binding(
+                                get: { PhoneFormatHelper.format(phone) },
+                                set: { newValue in
+                                    phone = PhoneFormatHelper.digitsOnly(newValue)
+                                }
+                            ))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .phone)
+                        }
+                        if shouldShowError(for: .phone), let message = phoneError {
+                            Text(message).foregroundColor(.red).font(.caption)
+                        }
                         NavigationLink {
                             CompanySelectionView(selectedCompanies: $selectedCompanies)
                         } label: {
@@ -41,12 +84,18 @@ struct UserDetailsView: View {
                                     .lineLimit(1)
                             }
                         }
+                        .simultaneousGesture(TapGesture().onEnded {
+                            touchedFields.insert(.company)
+                        })
+                        if shouldShowError(for: .company), let message = companyError {
+                            Text(message).foregroundColor(.red).font(.caption)
+                        }
                     } else {
                         DetailRow(label: "Nome", value: user.name)
                         DetailRow(label: "e-mail", value: user.email)
                         DetailRow(label: "CRM", value: user.crm)
                         DetailRow(label: "RQE", value: user.rqe ?? "")
-                        DetailRow(label: "Telefone", value: user.phone)
+                        DetailRow(label: "Telefone", value: PhoneFormatHelper.format(user.phone))
                         DetailRow(label: "Empresas", value: user.company.displayJoined)
                     }
                 } header: {
@@ -91,6 +140,9 @@ struct UserDetailsView: View {
                 Button {
                     if isEditing {
                         Task {
+                            showValidationErrors = true
+                            touchedFields = Set([.name, .email, .crm, .rqe, .phone])
+                            guard isValid else { return }
                             await updateUser()
                         }
                     } else {
@@ -105,10 +157,28 @@ struct UserDetailsView: View {
                         Text("Editar")
                     }
                 }
+                .disabled(isEditing && !isValid)
             }
             
         }
         .navigationTitle("Detalhes do Usuário")
+        .onChange(of: focusedField) { previous, current in
+            if let previous, current != previous {
+                touchedFields.insert(previous)
+            }
+            if previous == .name && current != .name {
+                name = NameFormatHelper.normalizeTitleCase(name)
+            }
+            if previous == .email && current != .email {
+                email = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            }
+            if previous == .crm && current != .crm {
+                crm = crm.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            }
+        }
+        .onChange(of: selectedCompanies) { _, _ in
+            touchedFields.insert(.company)
+        }
     }
     
     private func loadInitialData() {
@@ -129,11 +199,11 @@ struct UserDetailsView: View {
             print("➡️ Atualizando usuário (PATCH /users/me)...")
             try await userSession.updateUser(
                 UpdateUserInput(
-                    user_name: name,
-                    email: email,
+                    user_name: NameFormatHelper.normalizeTitleCase(name),
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                     crm_number_uf: crm,
                     rqe: rqe.isEmpty ? nil : rqe,
-                    phone: phone.isEmpty ? nil : phone,
+                    phone: phone.isEmpty ? nil : PhoneFormatHelper.digitsOnly(phone),
                     company: selectedCompanies
                 )
             )
@@ -174,6 +244,88 @@ struct UserDetailsView: View {
             return false
         }
     }
+
+    private var isValid: Bool {
+        let hasName = isValidFullName(name)
+        let hasEmail = isValidEmail(email)
+        let hasCrm = isValidCrm(crm)
+        let phoneDigits = PhoneFormatHelper.digitsOnly(phone)
+        let hasPhone = phoneDigits.count == 11
+        return hasName && hasEmail && hasCrm && hasPhone
+    }
+
+    private func shouldShowError(for field: Field) -> Bool {
+        touchedFields.contains(field) && focusedField != field
+    }
+
+    private var nameError: String? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Nome obrigatório"
+        }
+        if !isValidFullName(name) {
+            return "Use nome completo"
+        }
+        return nil
+    }
+
+    private var emailError: String? {
+        if email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "E-mail obrigatório"
+        }
+        if !isValidEmail(email) {
+            return "Formato inválido (ex: nome@dominio.com)"
+        }
+        return nil
+    }
+
+    private var crmError: String? {
+        if crm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "CRM obrigatório"
+        }
+        if !isValidCrm(crm) {
+            return "Formato inválido (ex: 1234-UF)"
+        }
+        return nil
+    }
+
+    private var phoneError: String? {
+        let digits = PhoneFormatHelper.digitsOnly(phone)
+        if digits.isEmpty {
+            return "Telefone obrigatório"
+        }
+        if digits.count != 11 {
+            return "Formato inválido (ex: 69981328798)"
+        }
+        return nil
+    }
+
+    private var companyError: String? {
+        if selectedCompanies.isEmpty {
+            return "Selecione ao menos uma empresa"
+        }
+        return nil
+    }
+
+    private func isValidEmail(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^[^@\s]+@[^@\s]+\.[^@\s]+$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private func isValidCrm(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let pattern = #"^\d{4}-[A-Z]{2}$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private func isValidFullName(_ value: String) -> Bool {
+        let parts = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        guard parts.count >= 2 else { return false }
+        return parts.allSatisfy { $0.count >= 3 }
+    }
 }
 
 private struct DetailRow: View {
@@ -190,5 +342,3 @@ private struct DetailRow: View {
         }
     }
 }
-
-

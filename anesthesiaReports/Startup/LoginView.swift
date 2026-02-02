@@ -14,29 +14,39 @@ struct LoginView: View {
         ZStack {
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
-            VStack(spacing: 0) {
-                Spacer()
-                
-                // Logo ou Ícone
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.blue)
-                    .padding(.bottom, 40)
+            VStack(spacing: 24) {
                 HStack(spacing: 8) {
                     Circle()
                         .fill(healthStatus.color)
-                        .frame(width: 10, height: 10)
+                        .frame(width: 8, height: 8)
                     Text(healthStatus.text)
                         .font(.caption)
                         .foregroundColor(healthStatus.color)
                 }
-                Form {
-                    Section{
-                        
+                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .background(healthStatus.color.opacity(0.12))
+                .clipShape(Capsule())
+
+                VStack(spacing: 12) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 56))
+                        .foregroundColor(.blue)
+
+                    Text("Entrar")
+                        .font(.title2.weight(.semibold))
+                }
+
+                VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         TextField("Email", text: $email)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                         
                         HStack {
                             Group {
@@ -47,58 +57,73 @@ struct LoginView: View {
                                 }
                             }
                             .textInputAutocapitalization(.never)
-                            
+
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash" : "eye")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 18, height: 18)
                                     .foregroundStyle(showPassword ? .primary : .secondary)
+                                    .padding(6)
                             }
                             .buttonStyle(.plain)
                         }
-                        
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+
                         if let errorMessage {
                             Text(errorMessage)
                                 .foregroundColor(.red)
+                                .font(.footnote)
                         }
                     }
-                    Section {
-                        Button(action: {
-                            Task {
-                                do {
-                                    print("➡️ Tentando login com email:", email)
-                                    try await session.login(
-                                        email: email,
-                                        password: password
-                                    )
-                                    print("✅ Login concluído com sucesso")
-                                } catch let authError as AuthError {
-                                    print("❌ AuthError recebido:", authError)
-                                    errorMessage = authError.userMessage
-                                } catch {
-                                    print("❌ Erro genérico recebido:", error)
-                                    errorMessage = "Erro de rede"
-                                }
+                    .padding(16)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+
+                    Button(action: {
+                        Task {
+                            do {
+                                print("➡️ Tentando login com email:", email)
+                                try await session.login(
+                                    email: email,
+                                    password: password
+                                )
+                                print("✅ Login concluído com sucesso")
+                            } catch let authError as AuthError {
+                                print("❌ AuthError recebido:", authError)
+                                errorMessage = authError.userMessage
+                            } catch {
+                                print("❌ Erro genérico recebido:", error)
+                                errorMessage = "Erro de rede"
                             }
-                        }) {
-                            Text("Entrar")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                                .foregroundColor(.white)
                         }
-                        .listRowBackground(Color.blue)
+                    }) {
+                        Text("Entrar")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .foregroundColor(.white)
                     }
+                    .background(Color.blue)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .scrollContentBackground(.hidden)
-                .scrollDisabled(true)
-                .frame(height: 230)
-                
-                NavigationLink("Criar conta") {
+
+                NavigationLink {
                     RegisterView()
+                } label: {
+                    Text("Criar conta")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemBackground))
+                        .clipShape(Capsule())
                 }
-                .padding(.top, 20)
-                
+
                 Spacer()
-                Spacer()
-                
             }
             .padding()
             .task {

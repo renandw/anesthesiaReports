@@ -5,6 +5,11 @@ struct PatientFormView: View {
         case standalone
         case wizard
     }
+    
+    private enum Field: Hashable {
+        case name
+        case cns
+    }
 
     @EnvironmentObject private var patientSession: PatientSession
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +28,8 @@ struct PatientFormView: View {
     @State private var isLoading = false
     @State private var duplicateMatches: [PrecheckMatchDTO] = []
     @State private var showDuplicateSheet = false
+    
+    @FocusState private var focusedField: Field?
     
     var body: some View {
         Group {
@@ -54,7 +61,14 @@ struct PatientFormView: View {
         Form {
             Section {
                 EditRow(label: "Nome", value: $name)
-                EditRow(label: "Data de Nascimento", value: $dateOfBirth)
+                    .focused($focusedField, equals: .name)
+                DateOnlyPickerSheet(
+                    isoDate: $dateOfBirth,
+                    title: "Data de Nascimento",
+                    placeholder: "Selecionar",
+                    minDate: Calendar.current.date(byAdding: .year, value: -150, to: Date()) ?? .distantPast,
+                    maxDate: Date()
+                )
                 HStack{
                     Text("Número SUS")
                         .fontWeight(.bold)
@@ -62,15 +76,12 @@ struct PatientFormView: View {
                     TextField("000 0000 0000 0000", text: Binding(
                         get: { formatCNS(cns) },
                         set: { newValue in
-                            cns = newValue.filter {$0.isNumber}
+                            let digits = newValue.filter { $0.isNumber }
+                            cns = String(digits.prefix(15))
                         }
                     ))
+                    .focused($focusedField, equals: .cns)
                     .keyboardType(.numberPad)
-                    .onChange(of: cns) { _, newValue in
-                        if newValue.count > 15 {
-                            cns = String(newValue.prefix(15))
-                        }
-                    }
                     .multilineTextAlignment(.trailing)
                     if !cns.isEmpty {
                         Button {
@@ -120,6 +131,11 @@ struct PatientFormView: View {
             .listRowBackground(Color.blue)
             .disabled(isLoading || !isValid)
         }
+        .onChange(of: focusedField) { previous, current in
+            if previous == .name && current != .name {
+                name = NameFormatHelper.normalizeTitleCase(name)
+            }
+        }
     }
     private var standaloneBody: some View {
         NavigationView {
@@ -152,7 +168,7 @@ struct PatientFormView: View {
     
     private var isValid: Bool {
         let digitCount = cns.filter { $0.isNumber }.count
-        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasName = NameFormatHelper.hasAtLeastTwoWords(name)
         let dob = DateFormatterHelper.normalizeISODateString(dateOfBirth)
         return hasName && digitCount == 15 && !dob.isEmpty && sex != nil
     }

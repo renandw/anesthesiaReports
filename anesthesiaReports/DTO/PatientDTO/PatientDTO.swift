@@ -10,6 +10,7 @@ struct PatientDTO: Decodable, Identifiable {
     let fingerprint: String
     let cns: String
     let myPermission: String?
+    let myRole: PatientRole?
     let createdBy: String
     let createdByName: String
     let createdAt: Date
@@ -35,6 +36,7 @@ struct PatientDTO: Decodable, Identifiable {
         case fingerprint
         case cns
         case myPermission = "my_permission"
+        case myRole = "my_role"
         case createdBy = "created_by"
         case createdByName = "created_by_name"
         case createdAt = "created_at"
@@ -51,6 +53,23 @@ struct PatientDTO: Decodable, Identifiable {
         case version
         case syncStatus = "sync_status"
         case lastSyncAt = "last_sync_at"
+    }
+}
+
+enum PatientRole: String, Codable, Hashable {
+    case owner
+    case editor
+    case shared
+    case unknown
+}
+
+extension PatientDTO {
+    var resolvedPermission: PatientPermission {
+        PatientPermission(rawValue: myPermission ?? "") ?? .unknown
+    }
+
+    var resolvedRole: PatientRole {
+        myRole ?? .unknown
     }
 }
 
@@ -81,7 +100,7 @@ struct UpdatePatientInput: Encodable {
 struct PatientShareDTO: Decodable, Identifiable {
     let userId: String
     let userName: String?
-    let permission: Permission
+    let permission: PatientPermission
     let grantedBy: String
     let grantedAt: Date
 

@@ -18,6 +18,14 @@ enum AuthError: Error {
     case userInactive
     case userDeleted
     case invalidPayload
+    case patientAccessRequired
+    case surgeryPermissionRequired
+    case surgeryEditForbidden
+    case surgeryFinancialForbidden
+    case surgeryShareForbidden
+    case surgerySharePrivilegedForbidden
+    case surgeryShareListForbidden
+    case surgeryRevokeForbidden
     case unauthorized
     case serverError
     case unknown
@@ -52,6 +60,22 @@ enum AuthError: Error {
             return .userDeleted
         case "INVALID_PAYLOAD":
             return .invalidPayload
+        case "PATIENT_ACCESS_REQUIRED":
+            return .patientAccessRequired
+        case "SURGERY_PERMISSION_REQUIRED":
+            return .surgeryPermissionRequired
+        case "SURGERY_EDIT_FORBIDDEN":
+            return .surgeryEditForbidden
+        case "SURGERY_FINANCIAL_FORBIDDEN":
+            return .surgeryFinancialForbidden
+        case "SURGERY_SHARE_FORBIDDEN":
+            return .surgeryShareForbidden
+        case "SURGERY_SHARE_PRIVILEGED_FORBIDDEN":
+            return .surgerySharePrivilegedForbidden
+        case "SURGERY_SHARE_LIST_FORBIDDEN":
+            return .surgeryShareListForbidden
+        case "SURGERY_REVOKE_FORBIDDEN":
+            return .surgeryRevokeForbidden
         case "USER_EXISTS":
             return .userExists
         case "UNAUTHORIZED":
@@ -95,6 +119,22 @@ extension AuthError {
             return "Credenciais inválidas"
         case .invalidPayload:
             return "Dados inválidos"
+        case .patientAccessRequired:
+            return "Sem acesso ao paciente"
+        case .surgeryPermissionRequired:
+            return "Sem permissão na cirurgia"
+        case .surgeryEditForbidden:
+            return "Não pode editar cirurgia"
+        case .surgeryFinancialForbidden:
+            return "Não pode editar financeiro da cirurgia"
+        case .surgeryShareForbidden:
+            return "Não pode compartilhar cirurgia"
+        case .surgerySharePrivilegedForbidden:
+            return "Não pode conceder permissão privilegiada"
+        case .surgeryShareListForbidden:
+            return "Não pode ver compartilhamentos da cirurgia"
+        case .surgeryRevokeForbidden:
+            return "Não pode revogar acessos da cirurgia"
         case .sessionExpired:
             return "Sessão expirada"
         case .userInactive:

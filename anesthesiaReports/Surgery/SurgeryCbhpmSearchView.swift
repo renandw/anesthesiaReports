@@ -4,8 +4,7 @@
 //
 //  Created by Renan Wrobel on 01/02/26.
 //
-
-
+import SwiftUI
 struct SurgeryCbhpmSearchView: View {
     @State private var searchText = ""
     @State private var selectedItems: [String: Int] = [:] // code: quantity
@@ -63,5 +62,39 @@ struct SurgeryCbhpmSearchView: View {
             }
         }
         .searchable(text: $searchText) // iOS 15+
+    }
+}
+
+struct SurgeryCbhpmSearchView_Previews: PreviewProvider {
+    static var previews: some View {
+        SurgeryCbhpmSearchView(
+            items: [
+                SurgeryCbhpmDTO(
+                    code: "31001019",
+                    procedure: "Apendicectomia",
+                    port: "2A"
+                ),
+                SurgeryCbhpmDTO(
+                    code: "31001027",
+                    procedure: "Colecistectomia videolaparoscópica",
+                    port: "3A"
+                ),
+                SurgeryCbhpmDTO(
+                    code: "31001035",
+                    procedure: "Herniorrafia inguinal unilateral",
+                    port: "2B"
+                ),
+                SurgeryCbhpmDTO(
+                    code: "31001043",
+                    procedure: "Laparotomia exploradora",
+                    port: "3B"
+                ),
+                SurgeryCbhpmDTO(
+                    code: "31001051",
+                    procedure: "Ressecção de tumor de cólon",
+                    port: "4A"
+                )
+            ]
+        )
     }
 }

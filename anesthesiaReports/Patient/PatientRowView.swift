@@ -11,6 +11,19 @@ struct PatientRowView: View {
     let patient: PatientSummary
     let numberCnsContext: numberCnsContext
     let ageContext: AgeContext
+    let role: PatientRole?
+
+    init(
+        patient: PatientSummary,
+        numberCnsContext: numberCnsContext,
+        ageContext: AgeContext,
+        role: PatientRole? = nil
+    ) {
+        self.patient = patient
+        self.numberCnsContext = numberCnsContext
+        self.ageContext = ageContext
+        self.role = role
+    }
     
     private func initials(from name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -66,10 +79,10 @@ struct PatientRowView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
 
-                        Text(DateFormatterHelper
-                            .parseISODate(patient.dateOfBirth)
-                            .map { DateFormatterHelper.format($0, dateStyle: .medium) }
-                            ?? "")
+                        Text(DateFormatterHelper.formatISODateString(
+                            patient.dateOfBirth,
+                            dateStyle: .short
+                        ))
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
@@ -97,6 +110,10 @@ struct PatientRowView: View {
                                 .bold()
                         }
                     }
+                }
+                if let role, role == .editor || role == .shared {
+                    Spacer()
+                    RoleInlineBadgeView(role: role, compact: true)
                 }
             }
             .cornerRadius(12)

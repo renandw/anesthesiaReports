@@ -23,7 +23,12 @@ struct PatientsListView: View {
                     PatientDetailView(patientId: patient.id)
                         .environmentObject(patientSession)
                 } label: {
-                    PatientRowView(patient: patient, numberCnsContext: .notNeeded, ageContext: .out)
+                    PatientRowView(
+                        patient: patient,
+                        numberCnsContext: .notNeeded,
+                        ageContext: .out,
+                        role: patient.resolvedRole
+                    )
                 }
             }
             .overlay {
@@ -54,8 +59,13 @@ struct PatientsListView: View {
             }
         }
         .toolbar {
-            Button("Novo") {
+            Button {
                 showCreate = true
+            } label: {
+                HStack {
+                    Image(systemName: "plus")
+                    Text("Novo")
+                }
             }
         }
         .task {

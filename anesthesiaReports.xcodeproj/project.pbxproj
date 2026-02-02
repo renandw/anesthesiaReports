@@ -34,7 +34,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Documentation/StartUPFlow-FSD.md",
-				"Documentation/SyncEngine-FSD.md",
 			);
 			target = C00D87272F25705200E7661A /* anesthesiaReports */;
 		};
@@ -46,7 +45,6 @@
 			buildPhase = C00D87242F25705200E7661A /* Sources */;
 			membershipExceptions = (
 				"Documentation/StartUPFlow-FSD.md",
-				"Documentation/SyncEngine-FSD.md",
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */

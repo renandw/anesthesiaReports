@@ -3,6 +3,7 @@ import SwiftUI
 struct PatientDetailView: View {
     @EnvironmentObject private var patientSession: PatientSession
     @EnvironmentObject private var userSession: UserSession
+    @EnvironmentObject private var surgerySession: SurgerySession
     @Environment(\.dismiss) private var dismiss
 
     let patientId: String
@@ -17,6 +18,9 @@ struct PatientDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var showMetadata = false
     @State private var shares: [PatientShareDTO] = []
+    @State private var surgeries: [SurgeryDTO] = []
+    @State private var isLoadingSurgeries = false
+    @State private var showCreateSurgery = false
 
     var navigationTitle: String {
         patient?.name ?? "Paciente"
@@ -39,25 +43,23 @@ struct PatientDetailView: View {
             }
 
             if let patient {
-                var age: String {
-                    guard
-                        let birthDate = DateFormatterHelper.parseISODate(patient.dateOfBirth)
-                    else {
-                        return "—"
-                    }
-                    return AgeContext.out.ageLongString(from: birthDate)
-                }
                 Section {
                     DetailRow(label: "Nome", value: patient.name)
                     DetailRow(label: "Sexo", value: patient.sex.sexStringDescription)
                     DetailRow(
                         label: "Nascimento",
-                        value: DateFormatterHelper
-                            .parseISODate(patient.dateOfBirth)
-                            .map { DateFormatterHelper.format($0, dateStyle: .medium) }
-                            ?? ""
+                        value: DateFormatterHelper.formatISODateString(
+                            patient.dateOfBirth,
+                            dateStyle: .medium
+                        )
                     )
-                    DetailRow(label: "Idade", value: age)
+                    DetailRow(label: "Idade", value: ageText(for: patient))
+                    HStack {
+                        Text("Acesso")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        RoleInlineBadgeView(role: patient.resolvedRole)
+                    }
                     
                         
                     if patient.cns != "000000000000000" {
@@ -75,23 +77,22 @@ struct PatientDetailView: View {
                     }
                 }
                 
-                if patient.myPermission == "write" || patient.myPermission == "" {
+                if patient.resolvedPermission == .write {
                     //gambiarra para que quando permission == read, não poder compartilhar com outros
                     Section {
-                        let visibleShares = shares.filter { $0.userId != userSession.user?.id }
                         if isLoadingShares {
                             ProgressView()
-                        } else if visibleShares.isEmpty {
+                        } else if visibleShares().isEmpty {
                             Text("Nenhum compartilhamento")
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(visibleShares) { share in
+                            ForEach(visibleShares()) { share in
                                 HStack {
                                     Text(share.userName ?? share.userId)
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                     Spacer()
-                                    PermissionInlineBadgeView(permission: share.permission)
+                                    RoleInlineBadgeView(role: roleForShare(share))
                                 }
                             }
                         }
@@ -107,7 +108,64 @@ struct PatientDetailView: View {
                         }
                     }
                 }
-                
+
+                Section {
+                    if isLoadingSurgeries {
+                        ProgressView()
+                    } else if surgeries.isEmpty {
+                        Text("Nenhuma cirurgia")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(surgeries) { surgery in
+                            NavigationLink {
+                                SurgeryDetailView(surgeryId: surgery.id)
+                                    .environmentObject(surgerySession)
+                                    .environmentObject(userSession)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(surgery.proposedProcedure)
+                                            .font(.subheadline.weight(.semibold))
+                                        HStack {
+                                            Text(surgery.hospital)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Text("*")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Text(DateFormatterHelper.formatISODateString(
+                                                surgery.date,
+                                                dateStyle: .medium
+                                            ))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if surgery.resolvedPermission != .owner {
+                                        Text(surgery.resolvedPermission.displayName)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(surgery.resolvedPermission.color)
+                                    }
+                                }
+                            }
+                            
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Cirurgias encontradas")
+                        Spacer()
+                        if patient.resolvedPermission == .write {
+                            Button {
+                                showCreateSurgery = true
+                            } label: {
+                                Image(systemName: "plus.circle")
+                            }
+                        }
+                    }
+                }
+
                 Section {
                     if showMetadata {
                         DetailRow(label: "Criado em", value: DateFormatterHelper.format(patient.createdAt, dateStyle: .medium, timeStyle: .short))
@@ -138,9 +196,9 @@ struct PatientDetailView: View {
                         Text("Metadados")
                         Spacer()
                         Button {
-                            showMetadata = true
+                            showMetadata.toggle()
                         } label: {
-                        Image(systemName: "info.circle.fill")
+                            Image(systemName: showMetadata ? "info.circle.fill" : "info.circle")
                         }
                     }
                 }
@@ -149,7 +207,7 @@ struct PatientDetailView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if patient?.myPermission == "write" && patient != nil {
+            if patient?.resolvedPermission == .write && patient != nil {
                 ToolbarItem(placement: .topBarTrailing){
                     Menu {
                         Button {
@@ -179,7 +237,7 @@ struct PatientDetailView: View {
             }
             Button("Cancelar", role: .cancel) {}
         }
-        .task { await load() }
+        .task { await reloadAll() }
         .refreshable { await reloadAll() }
         .sheet(isPresented: $showEdit) {
             PatientFormView(
@@ -198,12 +256,23 @@ struct PatientDetailView: View {
                     .environmentObject(userSession)
             }
         }
+        .sheet(isPresented: $showCreateSurgery) {
+            SurgeryFormView(
+                mode: .standalone,
+                patientId: patientId,
+                existing: nil,
+                onComplete: { created in
+                    Task { await loadSurgeries() }
+                }
+            )
+            .environmentObject(surgerySession)
+        }
         .onChange(of: showShare) { oldValue, newValue in
             if oldValue && !newValue {
                 Task { await loadShares() }
             }
         }
-        .onChange(of: patient?.myPermission) { _ in
+        .onChange(of: patient?.resolvedPermission) { _ in
             Task { await loadShares() }
         }
         .disabled(isDeleting)
@@ -237,7 +306,7 @@ struct PatientDetailView: View {
     }
 
     private func loadShares() async {
-        guard patient?.myPermission == "write" else {
+        guard patient?.resolvedPermission == .write else {
             shares = []
             return
         }
@@ -255,9 +324,46 @@ struct PatientDetailView: View {
         isLoadingShares = false
     }
 
+    private func loadSurgeries() async {
+        isLoadingSurgeries = true
+        do {
+            surgeries = try await surgerySession.listByPatient(patientId: patientId)
+        } catch let authError as AuthError {
+            if !authError.isFatalSessionError {
+                errorMessage = authError.userMessage
+            }
+        } catch {
+            errorMessage = "Erro de rede"
+        }
+        isLoadingSurgeries = false
+    }
+
+    private func roleForShare(_ share: PatientShareDTO) -> PatientRole {
+        guard let patient else { return .unknown }
+        if share.userId == patient.createdBy {
+            return .owner
+        }
+        if share.grantedBy == share.userId {
+            return .editor
+        }
+        return .shared
+    }
+
+    private func visibleShares() -> [PatientShareDTO] {
+        shares.filter { $0.userId != userSession.user?.id }
+    }
+
     private func reloadAll() async {
         await load()
         await loadShares()
+        await loadSurgeries()
+    }
+
+    private func ageText(for patient: PatientDTO) -> String {
+        guard let birthDate = DateFormatterHelper.parseISODate(patient.dateOfBirth) else {
+            return "—"
+        }
+        return AgeContext.out.ageLongString(from: birthDate)
     }
 }
 

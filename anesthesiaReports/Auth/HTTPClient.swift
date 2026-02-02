@@ -81,7 +81,18 @@ final class HTTPClient {
             }
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(T.self, from: data)
+            do {
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                #if DEBUG
+                let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
+                print("❌ Decode error for \(method) \(path)")
+                print("HTTP \(http.statusCode)")
+                print("Body: \(body)")
+                print("Error: \(error)")
+                #endif
+                throw error
+            }
         }
 
         let authError = AuthError.from(statusCode: http.statusCode, data: data)
