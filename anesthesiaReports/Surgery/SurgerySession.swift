@@ -87,6 +87,16 @@ final class SurgerySession: ObservableObject {
         }
     }
 
+    func delete(surgeryId: String) async throws {
+        do {
+            try await api.delete(surgeryId: surgeryId)
+            surgeries.removeAll { $0.id == surgeryId }
+        } catch let authError as AuthError {
+            authSession.handleFatalAuthError(authError)
+            throw authError
+        }
+    }
+
     // MARK: - Sharing
 
     func listShares(surgeryId: String) async throws -> [SurgeryShareDTO] {

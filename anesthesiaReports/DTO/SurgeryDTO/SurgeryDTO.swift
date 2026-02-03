@@ -20,7 +20,7 @@ struct SurgeryDTO: Decodable, Identifiable {
     let status: String
     let type: String
     let myPermission: String
-    let cbhpm: SurgeryCbhpmDTO?
+    let cbhpms: [SurgeryCbhpmDTO]
     let financial: SurgeryFinancialDTO?
     let createdBy: String
     let createdByName: String
@@ -57,7 +57,7 @@ struct SurgeryDTO: Decodable, Identifiable {
         case status
         case type
         case myPermission = "my_permission"
-        case cbhpm
+        case cbhpms
         case financial
         case createdBy = "created_by"
         case createdByName = "created_by_name"
@@ -70,11 +70,52 @@ struct SurgeryDTO: Decodable, Identifiable {
         case lastActivityByName = "last_activity_by_name"
         case deletedAt = "deleted_at"
         case deletedBy = "deleted_by"
-        case deletedByName = "deleted_byName"
+        case deletedByName = "deleted_by_name"
         case isDeleted = "is_deleted"
         case version
         case syncStatus = "sync_status"
         case lastSyncAt = "last_sync_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        lastDigits = try container.decode(String.self, forKey: .lastDigits)
+        patientId = try container.decode(String.self, forKey: .patientId)
+        date = try container.decode(String.self, forKey: .date)
+        startAt = try container.decodeIfPresent(Date.self, forKey: .startAt)
+        endAt = try container.decodeIfPresent(Date.self, forKey: .endAt)
+        insuranceName = try container.decode(String.self, forKey: .insuranceName)
+        insuranceNumber = try container.decode(String.self, forKey: .insuranceNumber)
+        mainSurgeon = try container.decode(String.self, forKey: .mainSurgeon)
+        auxiliarySurgeons = try container.decodeIfPresent([String].self, forKey: .auxiliarySurgeons)
+        hospital = try container.decode(String.self, forKey: .hospital)
+        weight = try container.decode(String.self, forKey: .weight)
+        proposedProcedure = try container.decode(String.self, forKey: .proposedProcedure)
+        completeProcedure = try container.decodeIfPresent(String.self, forKey: .completeProcedure)
+        status = try container.decode(String.self, forKey: .status)
+        type = try container.decode(String.self, forKey: .type)
+        myPermission = try container.decode(String.self, forKey: .myPermission)
+        financial = try container.decodeIfPresent(SurgeryFinancialDTO.self, forKey: .financial)
+        createdBy = try container.decode(String.self, forKey: .createdBy)
+        createdByName = try container.decode(String.self, forKey: .createdByName)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedBy = try container.decodeIfPresent(String.self, forKey: .updatedBy)
+        updatedByName = try container.decodeIfPresent(String.self, forKey: .updatedByName)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        lastActivityAt = try container.decodeIfPresent(Date.self, forKey: .lastActivityAt)
+        lastActivityBy = try container.decodeIfPresent(String.self, forKey: .lastActivityBy)
+        lastActivityByName = try container.decodeIfPresent(String.self, forKey: .lastActivityByName)
+        deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        deletedBy = try container.decodeIfPresent(String.self, forKey: .deletedBy)
+        deletedByName = try container.decodeIfPresent(String.self, forKey: .deletedByName)
+        isDeleted = try container.decode(Bool.self, forKey: .isDeleted)
+        version = try container.decode(Int.self, forKey: .version)
+        syncStatus = try container.decode(String.self, forKey: .syncStatus)
+        lastSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncAt)
+
+        cbhpms = try container.decodeIfPresent([SurgeryCbhpmDTO].self, forKey: .cbhpms) ?? []
     }
 }
 
@@ -155,7 +196,7 @@ struct CreateSurgeryInput: Encodable {
     let proposed_procedure: String
     let complete_procedure: String?
     let type: String
-    let cbhpm: SurgeryCbhpmInput?
+    let cbhpms: [SurgeryCbhpmInput]?
     let financial: SurgeryFinancialInput?
 }
 
@@ -171,7 +212,7 @@ struct UpdateSurgeryInput: Encodable {
     let complete_procedure: String?
     let type: String?
     let status: String?
-    let cbhpm: SurgeryCbhpmInput?
+    let cbhpms: [SurgeryCbhpmInput]?
     let financial: SurgeryFinancialInput?
 }
 

@@ -42,7 +42,9 @@ struct SurgeryFormView: View {
     @State private var cbhpmCode = ""
     @State private var cbhpmProcedure = ""
     @State private var cbhpmPort = ""
+    @State private var cbhpms: [SurgeryCbhpmInput] = []
     @State private var showCbhpmSheet = false
+    @State private var cbhpmSheetError: String?
     @State private var duplicateMatches: [PrecheckSurgeryMatchDTO] = []
     @State private var showDuplicateSheet = false
 
@@ -193,35 +195,77 @@ struct SurgeryFormView: View {
                 Section {
                     NavigationLink {
                         SurgeryCbhpmSearchView(items: cbhpmCatalog) { selected in
-                            guard let first = selected.first else { return }
-                            cbhpmCode = first.code
-                            cbhpmProcedure = first.procedure
-                            cbhpmPort = first.port
+                            appendSelectedFromCatalog(selected)
                         }
                     } label: {
                         Label("Buscar na Tabela CBHPM", systemImage: "magnifyingglass")
                     }
                 } header: {
-                    Text("Catálogo")
+                    Text("Catálogo de Códigos")
                 }
             }
-
+            
             Section {
                 EditRow(label: "Código", value: $cbhpmCode)
                 EditRow(label: "Procedimento", value: $cbhpmProcedure)
                 EditRow(label: "Porte", value: $cbhpmPort)
+
+                Button("Adicionar ao resumo") {
+                    addManualCbhpmFromSheet()
+                }
             } header: {
-                Text("CBHPM")
+                Text("Adicionar Não Padronizados")
+            }
+
+            Section {
+                if cbhpms.isEmpty {
+                    Text("Nenhum item adicionado")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(cbhpms.enumerated()), id: \.offset) { index, item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(item.code)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Button("Remover", role: .destructive) {
+                                    cbhpms.remove(at: index)
+                                }
+                                .font(.caption)
+                            }
+                            Text(item.procedure)
+                                .font(.subheadline)
+                            Text("Porte \(item.port)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            } header: {
+                Text("Códigos CBHPM adicionados")
+            }
+
+            if let cbhpmSheetError {
+                Section {
+                    Text(cbhpmSheetError)
+                        .foregroundStyle(.red)
+                }
             }
         }
         .navigationTitle("CBHPM")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancelar", systemImage: "xmark") { dismiss() }
+                Button("Cancelar", systemImage: "xmark") {
+                    showCbhpmSheet = false
+                }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("OK", systemImage: "checkmark") { dismiss() }
+                Button("OK", systemImage: "checkmark") {
+                    cbhpmSheetError = nil
+                    showCbhpmSheet = false
+                }
             }
         }
     }
@@ -238,9 +282,7 @@ struct SurgeryFormView: View {
     }
 
     private var cbhpmSummary: String {
-        let trimmedCode = cbhpmCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedCode.isEmpty { return "Opcional" }
-        return trimmedCode
+        cbhpms.isEmpty ? "Opcional" : "\(cbhpms.count) item(ns)"
     }
 
     private func loadIfNeeded() {
@@ -257,11 +299,7 @@ struct SurgeryFormView: View {
         type = SurgeryType(rawValue: existing.type) ?? .insurance
         valueAnesthesia = existing.financial?.valueAnesthesia ?? ""
 
-        if let cbhpm = existing.cbhpm {
-            cbhpmCode = cbhpm.code
-            cbhpmProcedure = cbhpm.procedure
-            cbhpmPort = cbhpm.port
-        }
+        cbhpms = existing.cbhpms.map { SurgeryCbhpmInput(code: $0.code, procedure: $0.procedure, port: $0.port) }
     }
 
     private func submit() async {
@@ -316,20 +354,7 @@ struct SurgeryFormView: View {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
 
-        let cbhpmInput: SurgeryCbhpmInput? = {
-            let code = cbhpmCode.trimmingCharacters(in: .whitespacesAndNewlines)
-            let proc = cbhpmProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
-            let port = cbhpmPort.trimmingCharacters(in: .whitespacesAndNewlines)
-            if code.isEmpty && proc.isEmpty && port.isEmpty {
-                return nil
-            }
-            guard !code.isEmpty, !proc.isEmpty, !port.isEmpty else {
-                errorMessage = "CBHPM incompleto"
-                return nil
-            }
-            return SurgeryCbhpmInput(code: code, procedure: proc, port: port)
-        }()
-
+        let cbhpmsInput = buildCbhpmsPayload()
         if errorMessage != nil { return }
 
         let valueAnesthesiaDouble: Double? = {
@@ -354,7 +379,7 @@ struct SurgeryFormView: View {
                         complete_procedure: trimmedComplete.isEmpty ? nil : trimmedComplete,
                         type: type.rawValue,
                         status: nil,
-                        cbhpm: cbhpmInput,
+                        cbhpms: cbhpmsInput,
                         financial: canEditFinancial
                             ? SurgeryFinancialInput(value_anesthesia: valueAnesthesiaDouble)
                             : nil
@@ -393,7 +418,7 @@ struct SurgeryFormView: View {
                         proposed_procedure: trimmedProposed,
                         complete_procedure: trimmedComplete.isEmpty ? nil : trimmedComplete,
                         type: type.rawValue,
-                        cbhpm: cbhpmInput,
+                        cbhpms: cbhpmsInput,
                         financial: SurgeryFinancialInput(value_anesthesia: valueAnesthesiaDouble)
                     )
                 )
@@ -462,20 +487,7 @@ struct SurgeryFormView: View {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
 
-        let cbhpmInput: SurgeryCbhpmInput? = {
-            let code = cbhpmCode.trimmingCharacters(in: .whitespacesAndNewlines)
-            let proc = cbhpmProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
-            let port = cbhpmPort.trimmingCharacters(in: .whitespacesAndNewlines)
-            if code.isEmpty && proc.isEmpty && port.isEmpty {
-                return nil
-            }
-            guard !code.isEmpty, !proc.isEmpty, !port.isEmpty else {
-                errorMessage = "CBHPM incompleto"
-                return nil
-            }
-            return SurgeryCbhpmInput(code: code, procedure: proc, port: port)
-        }()
-
+        let cbhpmsInput = buildCbhpmsPayload()
         if errorMessage != nil { return }
 
         let valueAnesthesiaDouble: Double? = {
@@ -498,7 +510,7 @@ struct SurgeryFormView: View {
                     proposed_procedure: trimmedProposed,
                     complete_procedure: trimmedComplete.isEmpty ? nil : trimmedComplete,
                     type: type.rawValue,
-                    cbhpm: cbhpmInput,
+                    cbhpms: cbhpmsInput,
                     financial: SurgeryFinancialInput(value_anesthesia: valueAnesthesiaDouble)
                 )
             )
@@ -535,5 +547,101 @@ struct SurgeryFormView: View {
     private var canEditFinancial: Bool {
         guard let existing else { return true }
         return existing.resolvedPermission == .owner
+    }
+
+    private enum ManualCbhpmDraft {
+        case empty
+        case valid(SurgeryCbhpmInput)
+        case incomplete
+    }
+
+    private func buildCbhpmsPayload() -> [SurgeryCbhpmInput]? {
+        var result: [SurgeryCbhpmInput] = []
+        var keys = Set<String>()
+
+        for item in cbhpms {
+            let normalized = normalizedCbhpm(item.code, item.procedure, item.port)
+            guard let normalized else { continue }
+            let key = cbhpmKey(normalized)
+            if keys.insert(key).inserted {
+                result.append(normalized)
+            }
+        }
+
+        switch manualDraftState() {
+        case .empty:
+            break
+        case let .valid(item):
+            let key = cbhpmKey(item)
+            if keys.insert(key).inserted {
+                result.append(item)
+            }
+        case .incomplete:
+            errorMessage = "CBHPM incompleto"
+            return nil
+        }
+
+        return result.isEmpty ? nil : result
+    }
+
+    private func manualDraftState() -> ManualCbhpmDraft {
+        let code = cbhpmCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let procedure = cbhpmProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
+        let port = cbhpmPort.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if code.isEmpty && procedure.isEmpty && port.isEmpty {
+            return .empty
+        }
+        guard let normalized = normalizedCbhpm(code, procedure, port) else {
+            return .incomplete
+        }
+        return .valid(normalized)
+    }
+
+    private func normalizedCbhpm(_ code: String, _ procedure: String, _ port: String) -> SurgeryCbhpmInput? {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedProcedure = procedure.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPort = port.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCode.isEmpty, !normalizedProcedure.isEmpty, !normalizedPort.isEmpty else {
+            return nil
+        }
+        return SurgeryCbhpmInput(code: normalizedCode, procedure: normalizedProcedure, port: normalizedPort)
+    }
+
+    private func cbhpmKey(_ item: SurgeryCbhpmInput) -> String {
+        "\(item.code.lowercased())|\(item.procedure.lowercased())|\(item.port.lowercased())"
+    }
+
+    private func appendSelectedFromCatalog(_ selected: [SelectedCbhpmItem]) {
+        cbhpmSheetError = nil
+
+        var existingKeys = Set(cbhpms.map(cbhpmKey))
+        for selectedItem in selected {
+            guard let normalized = normalizedCbhpm(selectedItem.code, selectedItem.procedure, selectedItem.port) else { continue }
+            let key = cbhpmKey(normalized)
+            if existingKeys.insert(key).inserted {
+                cbhpms.append(normalized)
+            }
+        }
+    }
+
+    private func addManualCbhpmFromSheet() {
+        cbhpmSheetError = nil
+
+        guard let item = normalizedCbhpm(cbhpmCode, cbhpmProcedure, cbhpmPort) else {
+            cbhpmSheetError = "Preencha código, procedimento e porte para adicionar."
+            return
+        }
+
+        let key = cbhpmKey(item)
+        guard !cbhpms.map(cbhpmKey).contains(key) else {
+            cbhpmSheetError = "Esse CBHPM já foi adicionado."
+            return
+        }
+
+        cbhpms.append(item)
+        cbhpmCode = ""
+        cbhpmProcedure = ""
+        cbhpmPort = ""
     }
 }

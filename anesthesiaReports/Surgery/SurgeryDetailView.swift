@@ -11,8 +11,10 @@ struct SurgeryDetailView: View {
     @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var isLoadingShares = false
+    @State private var isDeleting = false
     @State private var showEdit = false
     @State private var showShare = false
+    @State private var showDeleteConfirmation = false
     @State private var shares: [SurgeryShareDTO] = []
 
     var navigationTitle: String {
@@ -64,13 +66,23 @@ struct SurgeryDetailView: View {
                 }
 
                 Section {
-                    if let cbhpm = surgery.cbhpm {
-                        DetailRow(label: "Código", value: cbhpm.code)
-                        DetailRow(label: "Procedimento", value: cbhpm.procedure)
-                        DetailRow(label: "Porte", value: cbhpm.port)
-                    } else {
+                    if surgery.cbhpms.isEmpty {
                         Text("Nenhum CBHPM")
                             .foregroundStyle(.secondary)
+                    } else {
+                        HStack {
+                            Text("Total")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(surgery.cbhpms.count) item(ns)")
+                                .fontWeight(.bold)
+                        }
+
+                        NavigationLink {
+                            SurgeryCbhpmsListView(cbhpms: surgery.cbhpms)
+                        } label: {
+                            Label("Ver lista completa", systemImage: "list.bullet")
+                        }
                     }
                 } header: {
                     Text("CBHPM")
@@ -176,11 +188,29 @@ struct SurgeryDetailView: View {
                                 Label("Compartilhar", systemImage: "square.and.arrow.up")
                             }
                         }
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Excluir", systemImage: "trash")
+                        }
                     } label: {
                         Image(systemName: "line.3.horizontal")
                     }
+                    .disabled(isDeleting)
                 }
             }
+        }
+        .confirmationDialog(
+            "Excluir cirurgia?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Excluir", role: .destructive) {
+                Task { await removeSurgery() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Essa ação marca a cirurgia como excluída e não pode ser desfeita pelo app.")
         }
         .task { await reloadAll() }
         .refreshable { await reloadAll() }
@@ -226,6 +256,7 @@ struct SurgeryDetailView: View {
     }
 
     private func load() async {
+        guard !isDeleting else { return }
         isLoading = true
         errorMessage = nil
         do {
@@ -257,6 +288,22 @@ struct SurgeryDetailView: View {
         isLoadingShares = false
     }
 
+    private func removeSurgery() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        errorMessage = nil
+        defer { isDeleting = false }
+
+        do {
+            try await surgerySession.delete(surgeryId: surgeryId)
+            dismiss()
+        } catch let authError as AuthError {
+            errorMessage = authError.userMessage
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
+    }
+
     private func canEdit(_ permission: SurgeryPermission) -> Bool {
         permission != .read
     }
@@ -282,5 +329,25 @@ private struct DetailRow: View {
             Text(value)
                 .fontWeight(.bold)
         }
+    }
+}
+
+private struct SurgeryCbhpmsListView: View {
+    let cbhpms: [SurgeryCbhpmDTO]
+
+    var body: some View {
+        List {
+            ForEach(Array(cbhpms.enumerated()), id: \.offset) { index, cbhpm in
+                Section {
+                    DetailRow(label: "Código", value: cbhpm.code)
+                    DetailRow(label: "Procedimento", value: cbhpm.procedure)
+                    DetailRow(label: "Porte", value: cbhpm.port)
+                } header: {
+                    Text("Item \(index + 1)")
+                }
+            }
+        }
+        .navigationTitle("CBHPMs")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

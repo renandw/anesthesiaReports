@@ -77,6 +77,14 @@ struct SurgeryAPI {
         return decoded.surgery
     }
 
+    func delete(surgeryId: String) async throws {
+        _ = try await client.request(
+            path: "/surgeries/\(surgeryId)",
+            method: "DELETE",
+            requiresAuth: true
+        ) as EmptyResponse
+    }
+
     // MARK: - Sharing
 
     func listShares(surgeryId: String) async throws -> [SurgeryShareDTO] {

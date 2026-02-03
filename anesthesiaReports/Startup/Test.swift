@@ -30,16 +30,21 @@ struct TestView: View {
                     // Form
                     Form {
                         Section {
-                            TextField("Email", text: $email)
-                                .textInputAutocapitalization(.never)
-                                .keyboardType(.emailAddress)
-                                .autocorrectionDisabled()
-                            
-                            HStack {
+                            HStack(spacing: 12){
+                                Image(systemName: "envelope.fill")
+                                    .foregroundStyle(.secondary)
+                                TextField("Email", text: $email)
+                                    .textInputAutocapitalization(.never)
+                                    .keyboardType(.emailAddress)
+                                    .autocorrectionDisabled()
+                            }
+                            HStack(spacing: 12){
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(.secondary)
                                 if isSecured {
                                     SecureField("Senha", text: $password)
                                 } else {
-                                    TextField("Senha", text: $password)
+                                        TextField("Senha", text: $password)
                                 }
                                 
                                 Button(action: {
