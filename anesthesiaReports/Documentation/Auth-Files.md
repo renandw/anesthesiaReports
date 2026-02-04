@@ -55,6 +55,8 @@ Auth/HTTPClient.swift
   - Injeta Authorization automaticamente
   - Faz refresh automático e repete a request uma única vez
   - Converte falhas em AuthError
+- Observações de erro
+  - Erros sem body parseável ainda podem ser mapeados por status HTTP (ex.: `429`, `503`, `504`) via `AuthError.from`
 - Fluxo
   - Request → 401/token inválido → refresh → retry 1x → erro fatal se falhar
 - Observações
@@ -78,6 +80,14 @@ Auth/Errors/AuthError.swift
   - Enum de erros de autenticação
   - Mapeamento de payload do backend
   - Define erros fatais e mensagens padrão
+- Novos códigos mapeados
+  - `RATE_LIMITED`
+  - `ALREADY_DELETED`
+  - `CONFLICT`
+  - `DB_UNAVAILABLE`
+  - `DB_TIMEOUT`
+- Observações
+  - Esses erros não encerram sessão automaticamente (`isFatalSessionError = false`)
 
 Auth/HealthAPI.swift
 - Responsabilidade

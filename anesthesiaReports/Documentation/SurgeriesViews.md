@@ -1,31 +1,57 @@
 # Surgeries Views
 
-Este documento resume os ajustes recentes nas telas de cirurgia (iOS), com foco no novo fluxo de `cbhpms` (array) e na melhoria de navegação para listas longas.
+Estado atual das views de cirurgia (iOS), responsabilidades, problemas identificados e soluções já aplicadas.
 
-## SurgeryFormView
+## Estado Atual
 
-- O formulário passou a trabalhar com `cbhpms` como lista (`[SurgeryCbhpmInput]`), sem compatibilidade com campo legado singular.
-- A sheet de CBHPM foi reorganizada para:
-  - buscar itens no catálogo (`SurgeryCbhpmSearchView`) e adicionar ao resumo;
-  - adicionar item manualmente com `Código`, `Procedimento` e `Porte`;
-  - exibir um resumo com itens já adicionados e ação de remover.
-- O resumo no formulário principal mostra apenas contagem (`N item(ns)`), evitando poluição visual.
-- No submit (create/update), o payload envia `cbhpms` como array (ou `nil` quando vazio), com deduplicação e validação de item manual incompleto.
-- Ao editar cirurgia existente, os itens são carregados de `existing.cbhpms`.
+### SurgeryFormView
+- Usa `cbhpms` como array (`[SurgeryCbhpmInput]`) sem campo legado singular.
+- Organiza o formulário em blocos: dados básicos, dados da cirurgia, equipe cirúrgica e informações adicionais.
+- `type` (`insurance`/`sus`) influencia UX de convênio e hospital.
+- `DateOnlyPickerSheet` com correção de timezone para evitar deslocamento de dia.
+- Auxiliares via `EditRowArray` (`[String]`) com normalização híbrida (onChange + onSubmit).
+- `mainSurgeon` e `hospital` normalizados com `NameFormatHelper` (perda de foco e submit).
+- Dedup de cirurgia via precheck + claim (`SurgeryDuplicatePatientSheet`).
 
-## SurgeryDetailView
+### CBHPM no Form
+- Busca no catálogo (`SurgeryCbhpmSearchView`) + adição manual.
+- Resumo com lista de itens adicionados e remoção individual.
+- Envio no payload como array, com deduplicação por `code+procedure+port`.
 
-- A seção `CBHPM` foi simplificada para não crescer demais quando há muitos itens.
-- Agora a seção mostra:
-  - total de itens (`N item(ns)`);
-  - `NavigationLink` para a lista completa.
-- Foi adicionada a view dedicada `SurgeryCbhpmsListView`, que lista todos os itens e detalhes:
-  - `Código`
-  - `Procedimento`
-  - `Porte`
+### SurgeryDetailView
+- Seção CBHPM simplificada: total de itens + `NavigationLink` para lista dedicada.
+- Ação de excluir cirurgia implementada no menu (com confirmação).
 
-## Objetivo de UX
+## Responsabilidades da SurgeryFormView
 
-- Reduzir densidade visual no detalhe e no formulário.
-- Manter acesso completo aos dados de CBHPM via navegação dedicada.
-- Preparar a UI para cirurgias com muitos procedimentos CBHPM sem comprometer legibilidade.
+- Capturar e validar dados de criação/edição de cirurgia.
+- Adaptar estados de UI para payload de API.
+- Aplicar regras de normalização de nomes e auxiliares.
+- Executar fluxos de deduplicação (precheck/claim).
+- Montar payloads para create/update e submit com controle de erro.
+
+## Problemas de Design/Código (Code Smells)
+
+- `submit()` e `createSurgeryEvenWithDuplicate()` têm alta duplicação de lógica.
+- View concentra muita regra de negócio (validação, normalização, dedup, montagem de payload).
+- Dependência de strings literais para regra financeira (`"particular"`).
+- Listas de convênio/hospitais hardcoded dentro da view.
+- Arquivo grande e com muitos estados, dificultando manutenção e testes.
+
+## Soluções Aplicadas
+
+- Migração completa para `cbhpms` array.
+- Melhor organização visual do formulário por seções.
+- Normalização híbrida de nomes (foco + submit).
+- Normalização de `auxiliarySurgeons` como array.
+- Correção de timezone no seletor de data.
+- UX de CBHPM com busca + resumo + remoção.
+- Lista dedicada de CBHPM no detalhe para reduzir poluição visual.
+- Botão de exclusão de cirurgia no detalhe com confirmação.
+
+## Próximos Passos Recomendados
+
+- Extrair builder/validator de payload para reduzir lógica na View.
+- Unificar e reutilizar validação entre os dois fluxos de submit.
+- Centralizar constantes (`"SUS"`, `"particular"`, mensagens e opções de listas).
+- Mover catálogos de convênio/hospital para provider/config dedicado.

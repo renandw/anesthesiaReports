@@ -1,6 +1,36 @@
 import SwiftUI
 
 struct LoginView: View {
+    private enum LoginFeedbackState {
+        case idle
+        case authenticating
+        case success
+        case failure
+
+        var title: String {
+            switch self {
+            case .idle:
+                return "Entrar"
+            case .authenticating:
+                return "Autenticando..."
+            case .success:
+                return "Sucesso"
+            case .failure:
+                return "Falha no login"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .idle, .authenticating:
+                return .blue
+            case .success:
+                return .green
+            case .failure:
+                return .red
+            }
+        }
+    }
     
     @EnvironmentObject private var session: AuthSession
     
@@ -9,6 +39,7 @@ struct LoginView: View {
     @State private var showPassword = false
     @State private var errorMessage: String?
     @State private var healthStatus: HealthStatus = .loading
+    @State private var loginFeedbackState: LoginFeedbackState = .idle
     
     var body: some View {
         ZStack {
@@ -93,31 +124,17 @@ struct LoginView: View {
                     .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
 
                     Button(action: {
-                        Task {
-                            do {
-                                print("➡️ Tentando login com email:", email)
-                                try await session.login(
-                                    email: email,
-                                    password: password
-                                )
-                                print("✅ Login concluído com sucesso")
-                            } catch let authError as AuthError {
-                                print("❌ AuthError recebido:", authError)
-                                errorMessage = authError.userMessage
-                            } catch {
-                                print("❌ Erro genérico recebido:", error)
-                                errorMessage = "Erro de rede"
-                            }
-                        }
+                        Task { await performLogin() }
                     }) {
-                        Text("Entrar")
+                        Text(loginFeedbackState.title)
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .foregroundColor(.white)
                     }
-                    .background(Color.blue)
+                    .background(loginFeedbackState.color)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .disabled(isLoginButtonDisabled)
                 }
 
                 NavigationLink {
@@ -140,6 +157,66 @@ struct LoginView: View {
             }
         }
         
+    }
+
+    private var isLoginButtonDisabled: Bool {
+        if case .authenticating = loginFeedbackState { return true }
+        return email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty
+    }
+
+    private func performLogin() async {
+        if case .authenticating = loginFeedbackState { return }
+
+        errorMessage = nil
+        loginFeedbackState = .authenticating
+
+        let normalizedEmail = email
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedPassword = password
+            .trimmingCharacters(in: .newlines)
+
+        email = normalizedEmail
+        password = normalizedPassword
+
+        do {
+            try await session.login(
+                email: normalizedEmail,
+                password: normalizedPassword
+            )
+            loginFeedbackState = .success
+        } catch let authError as AuthError {
+            errorMessage = authError.userMessage
+            loginFeedbackState = .failure
+
+            let cooldownNanos: UInt64
+            let shouldClearEmail: Bool
+            switch authError {
+            case .rateLimited:
+                cooldownNanos = 5_000_000_000
+                shouldClearEmail = false
+            case .userNotRegistered:
+                cooldownNanos = 1_500_000_000
+                shouldClearEmail = true
+            default:
+                cooldownNanos = 1_500_000_000
+                shouldClearEmail = false
+            }
+            try? await Task.sleep(nanoseconds: cooldownNanos)
+
+            if shouldClearEmail {
+                email = ""
+            }
+            password = ""
+            loginFeedbackState = .idle
+        } catch {
+            errorMessage = AuthError.network.userMessage
+            loginFeedbackState = .failure
+
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            password = ""
+            loginFeedbackState = .idle
+        }
     }
 }
 

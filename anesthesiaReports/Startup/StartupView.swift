@@ -13,7 +13,14 @@ struct StartupView: View {
             Group {
                 switch session.state {
                 case .loading:
-                    ProgressView()
+                    switch healthStatus {
+                    case .loading:
+                        ProgressView()
+                    case .healthy:
+                        ProgressView()
+                    case .unhealthy:
+                        SystemUnavailableView()
+                    }
                     
                 case .unauthenticated:
                     switch healthStatus {
@@ -98,12 +105,16 @@ struct StartupView_Previews: PreviewProvider {
 private struct SystemUnavailableView: View {
     var body: some View {
         VStack(spacing: 12) {
-            Text("Sistema indisponível")
+            Text("Servidor indisponível")
                 .font(.headline)
-            Text("Aguardando o serviço voltar...")
+            Text("Reconectando...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .padding()
     }
+}
+
+#Preview("Sistema Indisponível") {
+    SystemUnavailableView()
 }

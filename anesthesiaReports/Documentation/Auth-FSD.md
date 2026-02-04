@@ -211,11 +211,26 @@ Casos relevantes:
 - userInactive
 - userDeleted
 - serverError
+- rateLimited
+- conflict
+- dbUnavailable
+- dbTimeout
 
 Erros de token do backend (`TOKEN_EXPIRED`, `TOKEN_INVALID`)
 são mapeados para `sessionExpired`.
 
 Somente AuthService e AuthSession reagem a esses erros.
+
+Novos códigos de backend com mapeamento explícito:
+- `RATE_LIMITED` -> `rateLimited`
+- `ALREADY_DELETED` -> `alreadyDeleted`
+- `CONFLICT` -> `conflict`
+- `DB_UNAVAILABLE` -> `dbUnavailable`
+- `DB_TIMEOUT` -> `dbTimeout`
+
+Política de sessão:
+- Fatais: `sessionExpired`, `unauthorized`, `userInactive`, `userDeleted`
+- Não fatais: `rateLimited`, `alreadyDeleted`, `conflict`, `dbUnavailable`, `dbTimeout`
 
 ---
 

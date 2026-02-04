@@ -12,6 +12,12 @@ struct DateOnlyPickerSheet: View {
     @State private var month = 1
     @State private var year = 2000
 
+    private var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return calendar
+    }
+
     var body: some View {
         Button {
             seedFromIso()
@@ -19,6 +25,7 @@ struct DateOnlyPickerSheet: View {
         } label: {
             HStack {
                 Text(title)
+                    .font(.subheadline)
                     .fontWeight(.bold)
                 Spacer()
                 if let date = DateFormatterHelper.parseISODate(isoDate), !isoDate.isEmpty {
@@ -89,21 +96,21 @@ struct DateOnlyPickerSheet: View {
     }
 
     private var yearRange: [Int] {
-        let min = Calendar.current.component(.year, from: minDate)
-        let max = Calendar.current.component(.year, from: maxDate)
+        let min = utcCalendar.component(.year, from: minDate)
+        let max = utcCalendar.component(.year, from: maxDate)
         return Array(min...max)
     }
 
     private func seedFromIso() {
         if let date = DateFormatterHelper.parseISODate(isoDate), !isoDate.isEmpty {
-            let calendar = Calendar.current
+            let calendar = utcCalendar
             day = calendar.component(.day, from: date)
             month = calendar.component(.month, from: date)
             year = calendar.component(.year, from: date)
             return
         }
 
-        let calendar = Calendar.current
+        let calendar = utcCalendar
         day = calendar.component(.day, from: maxDate)
         month = calendar.component(.month, from: maxDate)
         year = calendar.component(.year, from: maxDate)
@@ -114,11 +121,14 @@ struct DateOnlyPickerSheet: View {
         components.day = day
         components.month = month
         components.year = year
-        components.calendar = Calendar.current
+        components.calendar = utcCalendar
         components.timeZone = TimeZone(secondsFromGMT: 0)
 
         guard let date = components.date else { return nil }
-        if date < minDate || date > maxDate { return nil }
+        let selectedDay = utcCalendar.startOfDay(for: date)
+        let minDay = utcCalendar.startOfDay(for: minDate)
+        let maxDay = utcCalendar.startOfDay(for: maxDate)
+        if selectedDay < minDay || selectedDay > maxDay { return nil }
         return date
     }
 

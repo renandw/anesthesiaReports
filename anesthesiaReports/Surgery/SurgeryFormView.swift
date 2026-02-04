@@ -29,9 +29,10 @@ struct SurgeryFormView: View {
 
     @State private var date: String = ""
     @State private var insuranceName = ""
+    @State private var lastInsuranceNameBeforeSus = ""
     @State private var insuranceNumber = ""
     @State private var mainSurgeon = ""
-    @State private var auxiliarySurgeonsText = ""
+    @State private var auxiliarySurgeons: [String] = []
     @State private var hospital = ""
     @State private var weight = ""
     @State private var proposedProcedure = ""
@@ -79,37 +80,30 @@ struct SurgeryFormView: View {
                 }
             )
         }
+        .onChange(of: focusedField) { previous, current in
+            if previous == .some(.mainSurgeon), current != .some(.mainSurgeon) {
+                mainSurgeon = NameFormatHelper.normalizeTitleCase(mainSurgeon)
+            }
+            if previous == .some(.hospital), current != .some(.hospital) {
+                hospital = NameFormatHelper.normalizeTitleCase(hospital)
+            }
+        }
+        .onChange(of: auxiliarySurgeons) { _, newValue in
+            let normalized = newValue
+                .map { NameFormatHelper.normalizeTitleCase($0) }
+                .filter { !$0.isEmpty }
+            if normalized != newValue {
+                auxiliarySurgeons = normalized
+            }
+        }
     }
 
     private var formContent: some View {
         Form {
             Section {
-                DateOnlyPickerSheet(
-                    isoDate: $date,
-                    title: "Data da Cirurgia",
-                    placeholder: "Selecionar",
-                    minDate: Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? .distantPast,
-                    maxDate: Calendar.current.date(byAdding: .year, value: 2, to: Date()) ?? .distantFuture
-                )
-                EditRow(label: "Convênio", value: $insuranceName)
-                    .focused($focusedField, equals: .insuranceName)
-                EditRow(label: "Nº Convênio", value: $insuranceNumber)
-                    .focused($focusedField, equals: .insuranceNumber)
-                EditRow(label: "Cirurgião principal", value: $mainSurgeon)
-                    .focused($focusedField, equals: .mainSurgeon)
-                EditRow(label: "Cirurgiões auxiliares", value: $auxiliarySurgeonsText)
-                EditRow(label: "Hospital", value: $hospital)
-                    .focused($focusedField, equals: .hospital)
-                EditRow(label: "Peso (kg)", value: $weight)
-                    .keyboardType(.decimalPad)
-                    .focused($focusedField, equals: .weight)
-                EditRow(label: "Procedimento proposto", value: $proposedProcedure)
-                    .focused($focusedField, equals: .proposedProcedure)
-                EditRow(label: "Procedimento completo", value: $completeProcedure)
-                    .focused($focusedField, equals: .completeProcedure)
-
                 HStack {
                     Text("Tipo")
+                        .font(.subheadline)
                         .fontWeight(.bold)
                     Spacer()
                     Picker("Tipo", selection: $type) {
@@ -120,9 +114,101 @@ struct SurgeryFormView: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
                 }
+                .onChange(of: type) { oldValue, newValue in
+                    if newValue != .insurance {
+                        let currentInsurance = insuranceName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !currentInsurance.isEmpty, currentInsurance.lowercased() != "sus" {
+                            lastInsuranceNameBeforeSus = currentInsurance
+                        }
+                        insuranceName = "SUS"
+                    } else if insuranceName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "sus" {
+                        insuranceName = lastInsuranceNameBeforeSus
+                    }
+                }
+                DateOnlyPickerSheet(
+                    isoDate: $date,
+                    title: "Data da Cirurgia",
+                    placeholder: "Selecionar",
+                    minDate: Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? .distantPast,
+                    maxDate: Calendar.current.date(byAdding: .year, value: 2, to: Date()) ?? .distantFuture
+                )
+                if type == .insurance {
+                    let insuranceList = ["Bradesco", "Unimed", "Particular", "Astir", "Amil", "Sulamerica", "Assefaz",
+                                        "Capesesp", "Cassi", "Funsa", "Fusex", "Geap",
+                                        "Life", "Saúde Caixa", "Innova", "Ipam" ]
+                    EditRowWithOptions(
+                        label: "Convênio",
+                        value: $insuranceName,
+                        options: insuranceList,
+                    )
+                    .focused($focusedField, equals: .insuranceName)
+                } else {
+                    HStack {
+                        Text("SUS")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(insuranceName)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                
+                EditRow(
+                    label: type == .insurance ? "Carteirinha" : "Prontuário",
+                    value: $insuranceNumber
+                )
+                .focused($focusedField, equals: .insuranceNumber)
             } header: {
-                let title = existing == nil ? "Nova Cirurgia" : "Editar Cirurgia"
-                Text(title)
+                HStack{
+                    Text("Dados Básicos")
+                }
+            }
+            Section {
+                let privateHospitals = [
+                    "Hospital 9 de Julho",
+                    "Hospital Central",
+                    "Hospital das Clínicas",
+                    "Hospital Prontocordis",
+                    "Hospital Unimed",
+                    "Instituto do Coração",
+                    "Igeron",
+                    "Hospital Samar"
+                ]
+                let publicHospitals = [
+                    "Hospital de Base - Centro Cirúrgico",
+                    "Hospital de Base - Centro Diagnóstico",
+                    "Hospital de Base - Centro Obstétrico",
+                    "Hospital de Base - UNACON",
+                    "Hospital de Retaguarda - Centro Cirúrgico",
+                    "Hospital João Paulo II - Centro Cirúrgico"
+                ]
+                if type == .insurance {
+                    EditRowWithOptions(label: "Hospital", value: $hospital, options: privateHospitals )
+                        .focused($focusedField, equals: .hospital)
+                } else {
+                    EditRowWithOptions(label: "Hospital", value: $hospital, options: publicHospitals )
+                        .focused($focusedField, equals: .hospital)
+                }
+                EditRow(label: "Peso (kg)", value: $weight)
+                    .keyboardType(.decimalPad)
+                    .focused($focusedField, equals: .weight)
+                EditRow(label: "Procedimento proposto", value: $proposedProcedure)
+                    .focused($focusedField, equals: .proposedProcedure)
+                EditRow(label: "Procedimento completo", value: $completeProcedure)
+                    .focused($focusedField, equals: .completeProcedure)
+            } header : {
+                HStack {
+                    Text("Dados da Cirurgia")
+                }
+            }
+            Section {
+                EditRow(label: "Cirurgião principal", value: $mainSurgeon)
+                    .focused($focusedField, equals: .mainSurgeon)
+                EditRowArray(label: "Auxiliares", values: $auxiliarySurgeons)
+            } header: {
+                HStack {
+                    Text("Equipe Cirúrgica")
+                }
             }
 
             Section {
@@ -130,12 +216,13 @@ struct SurgeryFormView: View {
                     showCbhpmSheet = true
                 } label: {
                     HStack {
-                        Text("CBHPM")
+                        Text("Códigos CBHPM")
                         Spacer()
                         Text(cbhpmSummary)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .buttonStyle(.plain)
                 
                 if insuranceName.lowercased() == "particular" && canEditFinancial {
                     EditRow(label: "Valor anestesia", value: $valueAnesthesia)
@@ -282,16 +369,23 @@ struct SurgeryFormView: View {
     }
 
     private var cbhpmSummary: String {
-        cbhpms.isEmpty ? "Opcional" : "\(cbhpms.count) item(ns)"
+        switch cbhpms.count {
+        case 0: return "Adicionar"
+        case 1: return "1 item"
+        default: return "\(cbhpms.count) itens"
+        }
     }
 
     private func loadIfNeeded() {
         guard let existing else { return }
         date = DateFormatterHelper.normalizeISODateString(existing.date)
         insuranceName = existing.insuranceName
+        if existing.insuranceName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "sus" {
+            lastInsuranceNameBeforeSus = existing.insuranceName
+        }
         insuranceNumber = existing.insuranceNumber
         mainSurgeon = existing.mainSurgeon
-        auxiliarySurgeonsText = existing.auxiliarySurgeons?.joined(separator: ", ") ?? ""
+        auxiliarySurgeons = existing.auxiliarySurgeons ?? []
         hospital = existing.hospital
         weight = String(existing.weight)
         proposedProcedure = existing.proposedProcedure
@@ -310,11 +404,10 @@ struct SurgeryFormView: View {
         let trimmedDate = DateFormatterHelper.normalizeISODateString(date)
         let trimmedInsuranceName = insuranceName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedInsuranceNumber = insuranceNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedMainSurgeon = mainSurgeon.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedHospital = hospital.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMainSurgeon = NameFormatHelper.normalizeTitleCase(mainSurgeon)
+        let trimmedHospital = NameFormatHelper.normalizeTitleCase(hospital)
         let trimmedProposed = proposedProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedComplete = completeProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
-        let auxTrimmed = auxiliarySurgeonsText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedDate.isEmpty else {
             errorMessage = "Data obrigatória"
@@ -347,12 +440,7 @@ struct SurgeryFormView: View {
             return
         }
 
-        let auxArray: [String]? = auxTrimmed.isEmpty
-            ? nil
-            : auxTrimmed
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+        let auxArray = normalizedAuxiliarySurgeons()
 
         let cbhpmsInput = buildCbhpmsPayload()
         if errorMessage != nil { return }
@@ -443,11 +531,10 @@ struct SurgeryFormView: View {
         let trimmedDate = DateFormatterHelper.normalizeISODateString(date)
         let trimmedInsuranceName = insuranceName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedInsuranceNumber = insuranceNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedMainSurgeon = mainSurgeon.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedHospital = hospital.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMainSurgeon = NameFormatHelper.normalizeTitleCase(mainSurgeon)
+        let trimmedHospital = NameFormatHelper.normalizeTitleCase(hospital)
         let trimmedProposed = proposedProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedComplete = completeProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
-        let auxTrimmed = auxiliarySurgeonsText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedDate.isEmpty else {
             errorMessage = "Data obrigatória"
@@ -480,12 +567,7 @@ struct SurgeryFormView: View {
             return
         }
 
-        let auxArray: [String]? = auxTrimmed.isEmpty
-            ? nil
-            : auxTrimmed
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+        let auxArray = normalizedAuxiliarySurgeons()
 
         let cbhpmsInput = buildCbhpmsPayload()
         if errorMessage != nil { return }
@@ -610,6 +692,13 @@ struct SurgeryFormView: View {
 
     private func cbhpmKey(_ item: SurgeryCbhpmInput) -> String {
         "\(item.code.lowercased())|\(item.procedure.lowercased())|\(item.port.lowercased())"
+    }
+
+    private func normalizedAuxiliarySurgeons() -> [String]? {
+        let normalized = auxiliarySurgeons
+            .map { NameFormatHelper.normalizeTitleCase($0) }
+            .filter { !$0.isEmpty }
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func appendSelectedFromCatalog(_ selected: [SelectedCbhpmItem]) {

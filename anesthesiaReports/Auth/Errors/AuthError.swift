@@ -26,20 +26,20 @@ enum AuthError: Error {
     case surgerySharePrivilegedForbidden
     case surgeryShareListForbidden
     case surgeryRevokeForbidden
+    case rateLimited
+    case alreadyDeleted
+    case conflict
+    case dbUnavailable
+    case dbTimeout
     case unauthorized
     case serverError
     case unknown
 
     static func from(statusCode: Int, data: Data) -> AuthError {
-        guard
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let error = json["error"] as? [String: Any],
-            let code = error["code"] as? String
-        else {
-            return .unknown
-        }
-
-        let message = (error["message"] as? String)?.lowercased() ?? ""
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let error = json?["error"] as? [String: Any]
+        let code = error?["code"] as? String
+        let message = (error?["message"] as? String)?.lowercased() ?? ""
 
         switch code {
         case "INVALID_CREDENTIALS":
@@ -76,12 +76,33 @@ enum AuthError: Error {
             return .surgeryShareListForbidden
         case "SURGERY_REVOKE_FORBIDDEN":
             return .surgeryRevokeForbidden
+        case "RATE_LIMITED":
+            return .rateLimited
+        case "ALREADY_DELETED":
+            return .alreadyDeleted
+        case "CONFLICT":
+            return .conflict
+        case "DB_UNAVAILABLE":
+            return .dbUnavailable
+        case "DB_TIMEOUT":
+            return .dbTimeout
         case "USER_EXISTS":
             return .userExists
         case "UNAUTHORIZED":
             return .unauthorized
         case "INTERNAL_ERROR":
             return .serverError
+        default:
+            break
+        }
+
+        switch statusCode {
+        case 429:
+            return .rateLimited
+        case 503:
+            return .dbUnavailable
+        case 504:
+            return .dbTimeout
         default:
             return .unknown
         }
@@ -135,6 +156,16 @@ extension AuthError {
             return "Não pode ver compartilhamentos da cirurgia"
         case .surgeryRevokeForbidden:
             return "Não pode revogar acessos da cirurgia"
+        case .rateLimited:
+            return "Muitas requisições ao servidor. Aguarde e tente novamente."
+        case .alreadyDeleted:
+            return "Este registro já foi excluído"
+        case .conflict:
+            return "Conflito de estado. Atualize os dados e tente novamente."
+        case .dbUnavailable:
+            return "Serviço temporariamente indisponível"
+        case .dbTimeout:
+            return "Tempo de resposta esgotado. Tente novamente."
         case .sessionExpired:
             return "Sessão expirada"
         case .userInactive:
