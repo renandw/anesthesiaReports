@@ -327,18 +327,3 @@ struct UserDetailsView: View {
         return parts.allSatisfy { $0.count >= 3 }
     }
 }
-
-private struct DetailRow: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .fontWeight(.bold)
-        }
-    }
-}

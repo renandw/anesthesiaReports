@@ -5,6 +5,13 @@ struct PatientFormView: View {
         case standalone
         case wizard
     }
+
+    private enum SubmitVisualState {
+        case idle
+        case submitting
+        case success
+        case failure
+    }
     
     private enum Field: Hashable {
         case name
@@ -26,6 +33,7 @@ struct PatientFormView: View {
 
     @State private var errorMessage: String?
     @State private var isLoading = false
+    @State private var submitVisualState: SubmitVisualState = .idle
     @State private var duplicateMatches: [PrecheckMatchDTO] = []
     @State private var showDuplicateSheet = false
     
@@ -122,14 +130,13 @@ struct PatientFormView: View {
             Button(action: {
                 Task { await submit() }
             }) {
-                let title = existing == nil ? "Criar" : "Salvar"
-                Text(title)
+                Text(submitButtonTitle)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.white)
             }
-            .listRowBackground(Color.blue)
-            .disabled(isLoading || !isValid)
+            .listRowBackground(submitButtonColor)
+            .disabled(isLoading || !isValid || isSubmitting)
         }
         .onChange(of: focusedField) { previous, current in
             if previous == .name && current != .name {
@@ -152,7 +159,7 @@ struct PatientFormView: View {
                                 await submit()
                             }
                         }
-                        .disabled(isLoading || !isValid)
+                        .disabled(isLoading || !isValid || isSubmitting)
                     }
                 }
                 .onAppear {
@@ -197,30 +204,20 @@ struct PatientFormView: View {
     }
 
     private func submit() async {
+        if isSubmitting { return }
         errorMessage = nil
         isLoading = true
+        submitVisualState = .submitting
         defer { isLoading = false }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDob = DateFormatterHelper.normalizeISODateString(dateOfBirth)
         let trimmedCns = cns.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedName.isEmpty else {
-            errorMessage = "Nome obrigatório"
-            return
-        }
-        guard !trimmedDob.isEmpty else {
-            errorMessage = "Data de nascimento obrigatória"
-            return
-        }
-        guard let sex else {
-            errorMessage = "Sexo obrigatório"
-            return
-        }
-        guard !trimmedCns.isEmpty else {
-            errorMessage = "CNS obrigatório"
-            return
-        }
+        guard !trimmedName.isEmpty else { await failSubmit("Nome obrigatório"); return }
+        guard !trimmedDob.isEmpty else { await failSubmit("Data de nascimento obrigatória"); return }
+        guard let sex else { await failSubmit("Sexo obrigatório"); return }
+        guard !trimmedCns.isEmpty else { await failSubmit("CNS obrigatório"); return }
 
         do {
             if let existing {
@@ -248,17 +245,22 @@ struct PatientFormView: View {
                 } else {
                     duplicateMatches = matches
                     showDuplicateSheet = true
+                    submitVisualState = .idle
                     return
                 }
             }
+
+            submitVisualState = .success
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            submitVisualState = .idle
 
             if mode == .standalone {
                 dismiss()
             }
         } catch let authError as AuthError {
-            errorMessage = authError.userMessage
+            await failSubmit(authError.userMessage)
         } catch {
-            errorMessage = "Erro de rede"
+            await failSubmit("Erro de rede")
         }
     }
 
@@ -341,5 +343,41 @@ struct PatientFormView: View {
         } catch {
             errorMessage = "Erro de rede"
         }
+    }
+
+    private var submitButtonTitle: String {
+        switch submitVisualState {
+        case .idle:
+            return existing == nil ? "Criar" : "Salvar"
+        case .submitting:
+            return "Enviando..."
+        case .success:
+            return "Sucesso"
+        case .failure:
+            return "Falha"
+        }
+    }
+
+    private var submitButtonColor: Color {
+        switch submitVisualState {
+        case .idle, .submitting:
+            return .blue
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+
+    private func failSubmit(_ message: String, cooldownNanos: UInt64 = 1_500_000_000) async {
+        errorMessage = message
+        submitVisualState = .failure
+        try? await Task.sleep(nanoseconds: cooldownNanos)
+        submitVisualState = .idle
+    }
+
+    private var isSubmitting: Bool {
+        if case .submitting = submitVisualState { return true }
+        return false
     }
 }

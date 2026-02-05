@@ -174,6 +174,64 @@ struct SurgeryFinancialDTO: Decodable {
     }
 }
 
+struct SurgeryFinancialDetailsDTO: Decodable {
+    let id: String
+    let surgeryId: String
+    let valueAnesthesia: String?
+    let valuePreAnesthesia: String?
+    let baseValue: String?
+    let finalSurgeryValue: String?
+    let valuePartialPayment: String?
+    let remainingValue: String?
+    let glosaAnesthesia: Bool?
+    let glosaPreanesthesia: Bool?
+    let glosaAnesthesiaValue: String?
+    let glosaPreanesthesiaValue: String?
+    let notes: String?
+    let paid: Bool
+    let paymentDate: String?
+    let taxedValue: String?
+    let taxPercentage: String?
+    let createdAt: Date
+    let updatedBy: String?
+    let updatedByName: String?
+    let updatedAt: Date?
+    let version: Int
+    let syncStatus: String
+    let lastSyncAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case surgeryId = "surgery_id"
+        case valueAnesthesia = "value_anesthesia"
+        case valuePreAnesthesia = "value_pre_anesthesia"
+        case baseValue = "base_value"
+        case finalSurgeryValue = "final_surgery_value"
+        case valuePartialPayment = "value_partial_payment"
+        case remainingValue = "remaining_value"
+        case glosaAnesthesia = "glosa_anesthesia"
+        case glosaPreanesthesia = "glosa_preanesthesia"
+        case glosaAnesthesiaValue = "glosa_anesthesia_value"
+        case glosaPreanesthesiaValue = "glosa_preanesthesia_value"
+        case notes
+        case paid
+        case paymentDate = "payment_date"
+        case taxedValue = "taxed_value"
+        case taxPercentage = "tax_percentage"
+        case createdAt = "created_at"
+        case updatedBy = "updated_by"
+        case updatedByName = "updated_by_name"
+        case updatedAt = "updated_at"
+        case version
+        case syncStatus = "sync_status"
+        case lastSyncAt = "last_sync_at"
+    }
+}
+
+struct FinancialResponse: Decodable {
+    let financial: SurgeryFinancialDetailsDTO
+}
+
 struct SurgeryResponse: Decodable {
     let surgery: SurgeryDTO
 }
@@ -224,6 +282,22 @@ struct SurgeryCbhpmInput: Encodable {
 
 struct SurgeryFinancialInput: Encodable {
     let value_anesthesia: Double?
+}
+
+struct UpdateSurgeryFinancialInput: Encodable {
+    let value_anesthesia: Double?
+    let value_pre_anesthesia: Double?
+    let final_surgery_value: Double?
+    let value_partial_payment: Double?
+    let glosa_anesthesia: Bool?
+    let glosa_preanesthesia: Bool?
+    let glosa_anesthesia_value: Double?
+    let glosa_preanesthesia_value: Double?
+    let notes: String?
+    let paid: Bool?
+    let payment_date: String?
+    let taxed_value: Double?
+    let tax_percentage: Double?
 }
 
 // MARK: - Sharing DTOs

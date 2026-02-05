@@ -6,6 +6,13 @@ struct SurgeryFormView: View {
         case wizard
     }
 
+    private enum SubmitVisualState {
+        case idle
+        case submitting
+        case success
+        case failure
+    }
+
     private enum Field: Hashable {
         case insuranceName
         case insuranceNumber
@@ -51,6 +58,7 @@ struct SurgeryFormView: View {
 
     @State private var errorMessage: String?
     @State private var isLoading = false
+    @State private var submitVisualState: SubmitVisualState = .idle
 
     @FocusState private var focusedField: Field?
 
@@ -241,14 +249,13 @@ struct SurgeryFormView: View {
             Button(action: {
                 Task { await submit() }
             }) {
-                let title = existing == nil ? "Criar" : "Salvar"
-                Text(title)
+                Text(submitButtonTitle)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.white)
             }
-            .listRowBackground(Color.blue)
-            .disabled(isLoading || !isValid)
+            .listRowBackground(submitButtonColor)
+            .disabled(isLoading || !isValid || isSubmitting)
         }
     }
 
@@ -265,7 +272,7 @@ struct SurgeryFormView: View {
                         Button("Salvar", systemImage: "checkmark") {
                             Task { await submit() }
                         }
-                        .disabled(isLoading || !isValid)
+                        .disabled(isLoading || !isValid || isSubmitting)
                     }
                 }
                 .onAppear { loadIfNeeded() }
@@ -397,8 +404,10 @@ struct SurgeryFormView: View {
     }
 
     private func submit() async {
+        if isSubmitting { return }
         errorMessage = nil
         isLoading = true
+        submitVisualState = .submitting
         defer { isLoading = false }
 
         let trimmedDate = DateFormatterHelper.normalizeISODateString(date)
@@ -409,41 +418,20 @@ struct SurgeryFormView: View {
         let trimmedProposed = proposedProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedComplete = completeProcedure.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedDate.isEmpty else {
-            errorMessage = "Data obrigatória"
-            return
-        }
-        guard !trimmedInsuranceName.isEmpty else {
-            errorMessage = "Convênio obrigatório"
-            return
-        }
-        guard !trimmedInsuranceNumber.isEmpty else {
-            errorMessage = "Número do convênio obrigatório"
-            return
-        }
-        guard !trimmedMainSurgeon.isEmpty else {
-            errorMessage = "Cirurgião principal obrigatório"
-            return
-        }
-        guard !trimmedHospital.isEmpty else {
-            errorMessage = "Hospital obrigatório"
-            return
-        }
-        guard !trimmedProposed.isEmpty else {
-            errorMessage = "Procedimento proposto obrigatório"
-            return
-        }
+        guard !trimmedDate.isEmpty else { await failSubmit("Data obrigatória"); return }
+        guard !trimmedInsuranceName.isEmpty else { await failSubmit("Convênio obrigatório"); return }
+        guard !trimmedInsuranceNumber.isEmpty else { await failSubmit("Número do convênio obrigatório"); return }
+        guard !trimmedMainSurgeon.isEmpty else { await failSubmit("Cirurgião principal obrigatório"); return }
+        guard !trimmedHospital.isEmpty else { await failSubmit("Hospital obrigatório"); return }
+        guard !trimmedProposed.isEmpty else { await failSubmit("Procedimento proposto obrigatório"); return }
 
         let weightValue = Double(weight.replacingOccurrences(of: ",", with: "."))
-        guard let weightValue else {
-            errorMessage = "Peso inválido"
-            return
-        }
+        guard let weightValue else { await failSubmit("Peso inválido"); return }
 
         let auxArray = normalizedAuxiliarySurgeons()
 
         let cbhpmsInput = buildCbhpmsPayload()
-        if errorMessage != nil { return }
+        if errorMessage != nil { await failSubmit(errorMessage ?? "Dados inválidos", cooldownNanos: 1_000_000_000); return }
 
         let valueAnesthesiaDouble: Double? = {
             let trimmed = valueAnesthesia.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -490,6 +478,7 @@ struct SurgeryFormView: View {
                 if !matches.isEmpty {
                     duplicateMatches = matches
                     showDuplicateSheet = true
+                    submitVisualState = .idle
                     return
                 }
 
@@ -513,13 +502,17 @@ struct SurgeryFormView: View {
                 onComplete?(created)
             }
 
+            submitVisualState = .success
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            submitVisualState = .idle
+
             if mode == .standalone {
                 dismiss()
             }
         } catch let authError as AuthError {
-            errorMessage = authError.userMessage
+            await failSubmit(authError.userMessage)
         } catch {
-            errorMessage = AuthError.network.userMessage
+            await failSubmit(AuthError.network.userMessage)
         }
     }
 
@@ -732,5 +725,41 @@ struct SurgeryFormView: View {
         cbhpmCode = ""
         cbhpmProcedure = ""
         cbhpmPort = ""
+    }
+
+    private var submitButtonTitle: String {
+        switch submitVisualState {
+        case .idle:
+            return existing == nil ? "Criar" : "Salvar"
+        case .submitting:
+            return "Enviando..."
+        case .success:
+            return "Sucesso"
+        case .failure:
+            return "Falha"
+        }
+    }
+
+    private var submitButtonColor: Color {
+        switch submitVisualState {
+        case .idle, .submitting:
+            return .blue
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+
+    private func failSubmit(_ message: String, cooldownNanos: UInt64 = 1_500_000_000) async {
+        errorMessage = message
+        submitVisualState = .failure
+        try? await Task.sleep(nanoseconds: cooldownNanos)
+        submitVisualState = .idle
+    }
+
+    private var isSubmitting: Bool {
+        if case .submitting = submitVisualState { return true }
+        return false
     }
 }

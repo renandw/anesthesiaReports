@@ -74,7 +74,7 @@ struct SurgeryDetailView: View {
                             Text("Total")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("\(surgery.cbhpms.count) item(ns)")
+                            Text("\(surgery.cbhpms.count) \(surgery.cbhpms.count == 1 ? "item" : "itens")")
                                 .fontWeight(.bold)
                         }
 
@@ -85,16 +85,18 @@ struct SurgeryDetailView: View {
                         }
                     }
                 } header: {
-                    Text("CBHPM")
+                    Text("Códigos e Procedimentos CBHPM")
                 }
 
-                if canSeeFinancial(surgery.resolvedPermission){
+                if canSeeFinancial(surgery.resolvedPermission), surgery.type == "insurance" {
                     Section {
-                        if let financial = surgery.financial, let value = financial.valueAnesthesia {
-                            DetailRow(label: "Valor anestesia", value: value)
-                        } else {
-                            Text("Sem dados financeiros")
-                                .foregroundStyle(.secondary)
+                        NavigationLink {
+                            FinancialDetailView(
+                                surgeryId: surgery.id,
+                                permission: surgery.resolvedPermission
+                            )
+                        } label: {
+                            Label("Abrir financeiro", systemImage: "dollarsign.circle")
                         }
                     } header: {
                         Text("Financeiro")
@@ -313,22 +315,7 @@ struct SurgeryDetailView: View {
     }
     
     private func canSeeFinancial(_ permission: SurgeryPermission) -> Bool {
-        permission == .owner
-    }
-}
-
-private struct DetailRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .fontWeight(.bold)
-        }
+        permission != .unknown
     }
 }
 

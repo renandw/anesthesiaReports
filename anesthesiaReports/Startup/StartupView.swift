@@ -7,6 +7,9 @@ struct StartupView: View {
     @State private var healthStatus: HealthStatus = .loading
     @State private var didCheckHealth = false
     @State private var didBootstrap = false
+    @State private var isCheckingHealthNow = false
+    @State private var lastHealthCheckAt: Date?
+    @State private var healthPollingTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -15,11 +18,25 @@ struct StartupView: View {
                 case .loading:
                     switch healthStatus {
                     case .loading:
-                        ProgressView()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Conectando com o servidor...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     case .healthy:
-                        ProgressView()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Verificando sessão...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     case .unhealthy:
-                        SystemUnavailableView()
+                        SystemUnavailableView(
+                            lastCheckedAt: lastHealthCheckAt,
+                            isRetrying: isCheckingHealthNow,
+                            onRetry: { await retryHealthNow() }
+                        )
                     }
                     
                 case .unauthenticated:
@@ -29,7 +46,11 @@ struct StartupView: View {
                     case .healthy:
                         LoginView()
                     case .unhealthy:
-                        SystemUnavailableView()
+                        SystemUnavailableView(
+                            lastCheckedAt: lastHealthCheckAt,
+                            isRetrying: isCheckingHealthNow,
+                            onRetry: { await retryHealthNow() }
+                        )
                     }
                     
                 case .authenticated:
@@ -42,29 +63,92 @@ struct StartupView: View {
             .task {
                 if !didCheckHealth {
                     didCheckHealth = true
-                    healthStatus = await HealthAPI().check()
+                    await refreshHealthStatus()
                 }
-                if healthStatus == .unhealthy {
-                    await pollHealthUntilRecovered()
+                await bootstrapIfPossible()
+            }
+            .onChange(of: healthStatus) { _, newValue in
+                if newValue == .unhealthy {
+                    startHealthPollingIfNeeded()
+                } else {
+                    stopHealthPolling()
                 }
-                if session.state == .loading,
-                   healthStatus == .healthy,
-                   !didBootstrap {
-                    didBootstrap = true
-                    await session.bootstrap()
-                }
+            }
+            .onDisappear {
+                stopHealthPolling()
             }
         }
     }
 
-    private func pollHealthUntilRecovered() async {
-        // If we later need global monitoring, extract this to a shared HealthMonitor
-        // that pushes state changes to all views (login, dashboard, etc).
-        while healthStatus == .unhealthy {
-            try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
-            let newStatus = await HealthAPI().check()
-            healthStatus = newStatus
+    @MainActor
+    private func refreshHealthStatus() async {
+        isCheckingHealthNow = true
+        let newStatus = await HealthAPI().check()
+        healthStatus = newStatus
+        lastHealthCheckAt = Date()
+        isCheckingHealthNow = false
+    }
+
+    @MainActor
+    private func retryHealthNow() async {
+        await refreshHealthStatus()
+        await bootstrapIfPossible()
+    }
+
+    @MainActor
+    private func bootstrapIfPossible() async {
+        if session.state == .loading,
+           healthStatus == .healthy,
+           !didBootstrap {
+            didBootstrap = true
+            await session.bootstrap()
         }
+    }
+
+    @MainActor
+    private func startHealthPollingIfNeeded() {
+        guard healthPollingTask == nil else { return }
+
+        healthPollingTask = Task {
+            var attempt = 0
+            while !Task.isCancelled {
+                attempt += 1
+                let intervalSeconds: UInt64
+                if attempt <= 3 {
+                    intervalSeconds = 5
+                } else if attempt <= 8 {
+                    intervalSeconds = 10
+                } else {
+                    intervalSeconds = 15
+                }
+
+                try? await Task.sleep(nanoseconds: intervalSeconds * 1_000_000_000)
+                if Task.isCancelled { break }
+                let shouldContinue = await MainActor.run { healthStatus == .unhealthy }
+                if !shouldContinue { break }
+
+                let newStatus = await HealthAPI().check()
+                await MainActor.run {
+                    healthStatus = newStatus
+                    lastHealthCheckAt = Date()
+                }
+
+                if newStatus == .healthy {
+                    await bootstrapIfPossible()
+                    break
+                }
+            }
+
+            await MainActor.run {
+                healthPollingTask = nil
+            }
+        }
+    }
+
+    @MainActor
+    private func stopHealthPolling() {
+        healthPollingTask?.cancel()
+        healthPollingTask = nil
     }
 }
 
@@ -103,6 +187,10 @@ struct StartupView_Previews: PreviewProvider {
 #endif
 
 private struct SystemUnavailableView: View {
+    let lastCheckedAt: Date?
+    let isRetrying: Bool
+    let onRetry: () async -> Void
+
     var body: some View {
         VStack(spacing: 12) {
             Text("Servidor indisponível")
@@ -110,11 +198,37 @@ private struct SystemUnavailableView: View {
             Text("Reconectando...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if let lastCheckedAt {
+                Text("Última verificação: \(DateFormatterHelper.format(lastCheckedAt, dateStyle: .none, timeStyle: .medium))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                Task { await onRetry() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isRetrying {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(isRetrying ? "Verificando..." : "Tentar novamente agora")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isRetrying)
         }
         .padding()
     }
 }
 
 #Preview("Sistema Indisponível") {
-    SystemUnavailableView()
+    SystemUnavailableView(
+        lastCheckedAt: Date(),
+        isRetrying: false,
+        onRetry: {}
+    )
 }

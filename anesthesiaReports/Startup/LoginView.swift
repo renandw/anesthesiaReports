@@ -121,7 +121,7 @@ struct LoginView: View {
                     .padding(16)
                     .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+                    .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
 
                     Button(action: {
                         Task { await performLogin() }

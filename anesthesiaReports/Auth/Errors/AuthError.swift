@@ -31,6 +31,7 @@ enum AuthError: Error {
     case conflict
     case dbUnavailable
     case dbTimeout
+    case notFound
     case unauthorized
     case serverError
     case unknown
@@ -86,6 +87,8 @@ enum AuthError: Error {
             return .dbUnavailable
         case "DB_TIMEOUT":
             return .dbTimeout
+        case "NOT_FOUND":
+            return .notFound
         case "USER_EXISTS":
             return .userExists
         case "UNAUTHORIZED":
@@ -166,6 +169,8 @@ extension AuthError {
             return "Serviço temporariamente indisponível"
         case .dbTimeout:
             return "Tempo de resposta esgotado. Tente novamente."
+        case .notFound:
+            return "Registro não encontrado"
         case .sessionExpired:
             return "Sessão expirada"
         case .userInactive:
@@ -179,7 +184,7 @@ extension AuthError {
         case .network:
             return "Erro de rede"
         case .unknown:
-            return "Erro inesperado"
+            return "Sem conexão ao servidor"
         }
     }
 }
