@@ -106,18 +106,22 @@ struct SurgeryDetailView: View {
                 if canEdit(surgery.resolvedPermission) {
                     Section {
                         if let anesthesia = anesthesiaDetails {
-                              NavigationLink {
-                                 // AnesthesiaDetailView(anesthesia: anesthesia)
-                              } label: {
-                                  Label("Detalhes da Anestesia", systemImage: "waveform.path.ecg")
-                              }
-                          } else {
-                              Button {
-                                  Task { await openAnesthesiaSheet() }
-                              } label: {
-                                  Label("Criar anestesia", systemImage: "plus.circle")
-                              }
-                          }
+                            NavigationLink {
+                                AnesthesiaDetailView(
+                                    surgeryId: surgeryId,
+                                    initialSurgery: surgery,
+                                    initialAnesthesia: anesthesia
+                                )
+                            } label: {
+                                Label("Detalhes da Anestesia", systemImage: "waveform.path.ecg")
+                            }
+                        } else {
+                            Button {
+                                Task { await openAnesthesiaSheet() }
+                            } label: {
+                                Label("Criar anestesia", systemImage: "plus.circle")
+                            }
+                        }
                     } header: {
                         Text("Anesthesia")
                     }
