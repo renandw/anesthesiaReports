@@ -76,38 +76,6 @@ struct PatientDetailView: View {
                         }
                     }
                 }
-                
-                if patient.resolvedPermission == .write {
-                    //gambiarra para que quando permission == read, não poder compartilhar com outros
-                    Section {
-                        if isLoadingShares {
-                            ProgressView()
-                        } else if visibleShares().isEmpty {
-                            Text("Nenhum compartilhamento")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(visibleShares()) { share in
-                                HStack {
-                                    Text(share.userName ?? share.userId)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                    Spacer()
-                                    RoleInlineBadgeView(role: roleForShare(share))
-                                }
-                            }
-                        }
-                    } header: {
-                        HStack{
-                            Text("Compartilhado com")
-                            Spacer()
-                            Button {
-                                showShare = true
-                            } label: {
-                            Image(systemName: "person.fill.badge.plus")
-                            }
-                        }
-                    }
-                }
 
                 Section {
                     if isLoadingSurgeries {
@@ -154,13 +122,44 @@ struct PatientDetailView: View {
                     }
                 } header: {
                     HStack {
-                        Text("Cirurgias encontradas")
+                        Text("Cirurgias")
                         Spacer()
                         if patient.resolvedPermission == .write {
                             Button {
                                 showCreateSurgery = true
                             } label: {
                                 Image(systemName: "plus.circle")
+                            }
+                        }
+                    }
+                }
+                if patient.resolvedPermission == .write {
+                    //gambiarra para que quando permission == read, não poder compartilhar com outros
+                    Section {
+                        if isLoadingShares {
+                            ProgressView()
+                        } else if visibleShares().isEmpty {
+                            Text("Nenhum compartilhamento")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(visibleShares()) { share in
+                                HStack {
+                                    Text(share.userName ?? share.userId)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                    Spacer()
+                                    RoleInlineBadgeView(role: roleForShare(share))
+                                }
+                            }
+                        }
+                    } header: {
+                        HStack{
+                            Text("Compartilhado com")
+                            Spacer()
+                            Button {
+                                showShare = true
+                            } label: {
+                            Image(systemName: "person.fill.badge.plus")
                             }
                         }
                     }

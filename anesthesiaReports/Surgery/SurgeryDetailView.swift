@@ -3,6 +3,7 @@ import SwiftUI
 struct SurgeryDetailView: View {
     @EnvironmentObject private var surgerySession: SurgerySession
     @EnvironmentObject private var userSession: UserSession
+    @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
     @Environment(\.dismiss) private var dismiss
 
     let surgeryId: String
@@ -13,12 +14,19 @@ struct SurgeryDetailView: View {
     @State private var isLoadingShares = false
     @State private var isDeleting = false
     @State private var showEdit = false
+    @State private var showAnesthesiaProgress = false
+    @State private var anesthesiaDetails: SurgeryAnesthesiaDetailsDTO?
     @State private var showShare = false
     @State private var showDeleteConfirmation = false
     @State private var shares: [SurgeryShareDTO] = []
 
     var navigationTitle: String {
-        surgery?.hospital ?? "Cirurgia"
+        surgery?.proposedProcedure ?? "Cirurgia"
+    }
+
+    private var visibleShares: [SurgeryShareDTO] {
+        guard let currentUserId = userSession.user?.id else { return shares }
+        return shares.filter { $0.userId != currentUserId }
     }
 
     var body: some View {
@@ -49,17 +57,9 @@ struct SurgeryDetailView: View {
                     }
                     DetailRow(label: "Hospital", value: surgery.hospital)
                     DetailRow(label: "Peso", value: surgery.weight)
-                    DetailRow(label: "Procedimento proposto", value: surgery.proposedProcedure)
+                    DetailRow(label: "Cirurgia", value: surgery.proposedProcedure)
                     if let complete = surgery.completeProcedure, !complete.isEmpty {
-                        DetailRow(label: "Procedimento completo", value: complete)
-                    }
-                    DetailRow(label: "Tipo", value: SurgeryType(rawValue: surgery.type)?.displayName ?? surgery.type)
-                    DetailRow(label: "Status", value: surgery.status)
-                    HStack {
-                        Text("Permissão")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        SurgeryPermissionInlineBadgeView(permission: surgery.resolvedPermission)
+                        DetailRow(label: "Cirurgia Realizada", value: complete)
                     }
                 } header: {
                     Text("Dados da cirurgia")
@@ -102,17 +102,37 @@ struct SurgeryDetailView: View {
                         Text("Financeiro")
                     }
                 }
+
+                if canEdit(surgery.resolvedPermission) {
+                    Section {
+                        if let anesthesia = anesthesiaDetails {
+                              NavigationLink {
+                                 // AnesthesiaDetailView(anesthesia: anesthesia)
+                              } label: {
+                                  Label("Detalhes da Anestesia", systemImage: "waveform.path.ecg")
+                              }
+                          } else {
+                              Button {
+                                  Task { await openAnesthesiaSheet() }
+                              } label: {
+                                  Label("Criar anestesia", systemImage: "plus.circle")
+                              }
+                          }
+                    } header: {
+                        Text("Anesthesia")
+                    }
+                }
                 
 
                 if canShare(surgery.resolvedPermission) {
                     Section {
                         if isLoadingShares {
                             ProgressView()
-                        } else if shares.isEmpty {
+                        } else if visibleShares.isEmpty {
                             Text("Nenhum compartilhamento")
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(shares) { share in
+                            ForEach(visibleShares) { share in
                                 HStack {
                                     Text(share.userName ?? share.userId)
                                         .lineLimit(1)
@@ -136,6 +156,14 @@ struct SurgeryDetailView: View {
                     
                     Section {
                         if showMetadata {
+                            HStack {
+                                Text("Permissão")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                SurgeryPermissionInlineBadgeView(permission: surgery.resolvedPermission)
+                            }
+                            DetailRow(label: "Tipo", value: SurgeryType(rawValue: surgery.type)?.displayName ?? surgery.type)
+                            DetailRow(label: "Status", value: surgery.status)
                             DetailRow(label: "Criado em", value: DateFormatterHelper.format(surgery.createdAt, dateStyle: .medium, timeStyle: .short))
                             DetailRow(label: "Criado por", value: surgery.createdByName)
                             DetailRow(label: "Atualizado em", value: DateFormatterHelper.format(surgery.updatedAt, dateStyle: .medium, timeStyle: .short))
@@ -242,6 +270,19 @@ struct SurgeryDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showAnesthesiaProgress, onDismiss: {
+            Task { await reloadAll() }
+        }) {
+            AnesthesiaFormView(
+                mode: .standalone,
+                surgeryId: surgeryId,
+                initialAnesthesia: anesthesiaDetails,
+                onComplete: { _ in
+                    Task { await load() }
+                }
+            )
+            .environmentObject(anesthesiaSession)
+        }
         .onChange(of: showShare) { oldValue, newValue in
             if oldValue && !newValue {
                 Task { await loadShares() }
@@ -254,7 +295,12 @@ struct SurgeryDetailView: View {
 
     private func reloadAll() async {
         await load()
+        await loadAnesthesiaLookup()
         await loadShares()
+    }
+
+    private func openAnesthesiaSheet() async {
+        showAnesthesiaProgress = true
     }
 
     private func load() async {
@@ -269,6 +315,25 @@ struct SurgeryDetailView: View {
             errorMessage = AuthError.network.userMessage
         }
         isLoading = false
+    }
+
+    private func loadAnesthesiaLookup() async {
+        guard let surgery, canEdit(surgery.resolvedPermission) else {
+            anesthesiaDetails = nil
+            return
+        }
+
+        do {
+            anesthesiaDetails = try await anesthesiaSession.getBySurgery(surgeryId: surgeryId)
+        } catch let authError as AuthError {
+            if case .notFound = authError {
+                anesthesiaDetails = nil
+            } else {
+                errorMessage = authError.userMessage
+            }
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
     }
 
     private func loadShares() async {
@@ -327,7 +392,7 @@ private struct SurgeryCbhpmsListView: View {
             ForEach(Array(cbhpms.enumerated()), id: \.offset) { index, cbhpm in
                 Section {
                     DetailRow(label: "Código", value: cbhpm.code)
-                    DetailRow(label: "Procedimento", value: cbhpm.procedure)
+                    Text(cbhpm.procedure)
                     DetailRow(label: "Porte", value: cbhpm.port)
                 } header: {
                     Text("Item \(index + 1)")

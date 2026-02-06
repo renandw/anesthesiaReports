@@ -15,11 +15,13 @@ struct anesthesiaReportsApp: App {
         let userSession = UserSession(storage: storage, authSession: authSession)
         let patientSession = PatientSession(authSession: authSession, api: PatientAPI())
         let surgerySession = SurgerySession(authSession: authSession, api: SurgeryAPI())
+        let anesthesiaSession = AnesthesiaSession(authSession: authSession, api: AnesthesiaAPI())
         authSession.attachUserSession(userSession)
         self.authSession = authSession
         self.userSession = userSession
         self.patientSession = patientSession
         self.surgerySession = surgerySession
+        self.anesthesiaSession = anesthesiaSession
     }
 
     var body: some Scene {
@@ -29,6 +31,7 @@ struct anesthesiaReportsApp: App {
                 .environmentObject(userSession)
                 .environmentObject(patientSession)
                 .environmentObject(surgerySession)
+                .environmentObject(anesthesiaSession)
         }
     }
     
@@ -38,4 +41,5 @@ struct anesthesiaReportsApp: App {
     private let authSession: AuthSession
     private let patientSession: PatientSession
     private let surgerySession: SurgerySession
+    private let anesthesiaSession: AnesthesiaSession
 }

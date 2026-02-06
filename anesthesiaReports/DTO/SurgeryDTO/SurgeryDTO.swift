@@ -378,3 +378,203 @@ struct PrecheckSurgeryMatchDTO: Decodable, Identifiable {
 struct PrecheckSurgeriesResponse: Decodable {
     let matches: [PrecheckSurgeryMatchDTO]
 }
+
+// MARK: - Anesthesia Progress DTOs
+
+struct SurgeryAnesthesiaProgressSurgeryDTO: Decodable {
+    let surgeryId: String
+    let status: String
+    let startAt: Date?
+    let endAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case surgeryId = "surgery_id"
+        case status
+        case startAt = "start_at"
+        case endAt = "end_at"
+    }
+}
+
+struct SurgeryAnesthesiaProgressAnesthesiaDTO: Decodable {
+    let anesthesiaId: String
+    let status: String
+    let startAt: Date?
+    let endAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case anesthesiaId = "anesthesia_id"
+        case status
+        case startAt = "start_at"
+        case endAt = "end_at"
+    }
+}
+
+struct SurgeryAnesthesiaProgressSharedPreDTO: Decodable {
+    let sharedId: String
+    let surgeryId: String
+    let asaRaw: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sharedId = "shared_id"
+        case surgeryId = "surgery_id"
+        case asaRaw = "asa_raw"
+    }
+}
+
+struct SurgeryAnesthesiaProgressResponse: Decodable {
+    let surgery: SurgeryAnesthesiaProgressSurgeryDTO
+    let anesthesia: SurgeryAnesthesiaProgressAnesthesiaDTO
+    let sharedPreAnesthesia: SurgeryAnesthesiaProgressSharedPreDTO
+
+    enum CodingKeys: String, CodingKey {
+        case surgery
+        case anesthesia
+        case sharedPreAnesthesia = "shared_pre_anesthesia"
+    }
+}
+
+struct SurgeryAnesthesiaDetailsDTO: Decodable {
+    let anesthesiaId: String
+    let sharedId: String
+    let status: String
+    let startAt: Date?
+    let endAt: Date?
+    let surgeryStartAt: Date?
+    let surgeryEndAt: Date?
+    let surgeryStatus: String?
+    let positionRaw: String?
+    let asaRaw: String?
+    let anesthesiaTechniques: [AnesthesiaTechniqueDTO]
+    let createdAt: Date
+    let createdBy: String
+    let updatedAt: Date?
+    let updatedBy: String?
+    let lastActivityAt: Date?
+    let lastActivityBy: String?
+    let version: Int
+    let syncStatus: String
+    let lastSyncAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case anesthesiaId = "anesthesia_id"
+        case sharedId = "shared_id"
+        case status
+        case startAt = "start_at"
+        case endAt = "end_at"
+        case surgeryStartAt = "surgery_start_at"
+        case surgeryEndAt = "surgery_end_at"
+        case surgeryStatus = "surgery_status"
+        case positionRaw = "position_raw"
+        case asaRaw = "asa_raw"
+        case anesthesiaTechniques = "anesthesia_techniques"
+        case createdAt = "created_at"
+        case createdBy = "created_by"
+        case updatedAt = "updated_at"
+        case updatedBy = "updated_by"
+        case lastActivityAt = "last_activity_at"
+        case lastActivityBy = "last_activity_by"
+        case version
+        case syncStatus = "sync_status"
+        case lastSyncAt = "last_sync_at"
+    }
+}
+
+struct SurgeryAnesthesiaResponse: Decodable {
+    let anesthesia: SurgeryAnesthesiaDetailsDTO
+}
+
+struct AnesthesiaTechniqueDTO: Codable, Hashable {
+    let techniqueId: String?
+    let categoryRaw: String
+    let type: String
+    let regionRaw: String?
+
+    enum CodingKeys: String, CodingKey {
+        case techniqueId = "technique_id"
+        case categoryRaw = "category_raw"
+        case type
+        case regionRaw = "region_raw"
+    }
+}
+
+struct AnesthesiaTechniqueInput: Encodable, Hashable {
+    let categoryRaw: String
+    let type: String
+    let regionRaw: String?
+
+    enum CodingKeys: String, CodingKey {
+        case categoryRaw = "category_raw"
+        case type
+        case regionRaw = "region_raw"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(categoryRaw, forKey: .categoryRaw)
+        try container.encode(type, forKey: .type)
+        if let regionRaw {
+            try container.encode(regionRaw, forKey: .regionRaw)
+        } else {
+            try container.encodeNil(forKey: .regionRaw)
+        }
+    }
+}
+
+struct CreateAnesthesiaInput: Encodable {
+    let surgery_id: String
+    let surgery_start_at: String
+    let start_at: String
+    let end_at: String?
+    let position_raw: String?
+    let asa_raw: String
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        surgery_id: String,
+        surgery_start_at: String,
+        start_at: String,
+        end_at: String?,
+        position_raw: String?,
+        asa_raw: String,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.surgery_id = surgery_id
+        self.surgery_start_at = surgery_start_at
+        self.start_at = start_at
+        self.end_at = end_at
+        self.position_raw = position_raw
+        self.asa_raw = asa_raw
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
+
+struct UpdateAnesthesiaInput: Encodable {
+    let surgery_start_at: String
+    let surgery_end_at: String
+    let start_at: String
+    let end_at: String
+    let position_raw: String?
+    let asa_raw: String
+    let status: String?
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        surgery_start_at: String,
+        surgery_end_at: String,
+        start_at: String,
+        end_at: String,
+        position_raw: String?,
+        asa_raw: String,
+        status: String?,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.surgery_start_at = surgery_start_at
+        self.surgery_end_at = surgery_end_at
+        self.start_at = start_at
+        self.end_at = end_at
+        self.position_raw = position_raw
+        self.asa_raw = asa_raw
+        self.status = status
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
