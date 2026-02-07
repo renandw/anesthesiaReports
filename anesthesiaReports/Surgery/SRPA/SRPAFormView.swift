@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct AnesthesiaFormView: View {
+struct SRPAFormView: View {
     enum Mode {
         case standalone
         case wizard
@@ -13,37 +13,35 @@ struct AnesthesiaFormView: View {
         case failure
     }
 
-    @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
+    @EnvironmentObject private var srpaSession: SRPASession
     @EnvironmentObject private var sharedPreSession: SharedPreAnesthesiaSession
     @Environment(\.dismiss) private var dismiss
 
     var mode: Mode = .standalone
     let surgeryId: String
-    let initialAnesthesia: SurgeryAnesthesiaDetailsDTO?
-    let onComplete: ((SurgeryAnesthesiaDetailsDTO) -> Void)?
+    let initialSRPA: SurgerySRPADetailsDTO?
+    let onComplete: ((SurgerySRPADetailsDTO) -> Void)?
 
-    @State private var surgeryStartAt = Date()
-    @State private var surgeryEndAt = Date()
-    @State private var hasSurgeryStartAt = false
-    @State private var hasSurgeryEndAt = false
-
-    @State private var anesthesiaStartAt = Date()
-    @State private var anesthesiaEndAt = Date()
-    @State private var hasAnesthesiaStartAt = false
-    @State private var hasAnesthesiaEndAt = false
-
+    @State private var srpaStartAt = Date()
+    @State private var srpaEndAt = Date()
+    @State private var hasSrpaStartAt = false
+    @State private var hasSrpaEndAt = false
     @State private var asaSelection: ASAClassification?
     @State private var anesthesiaTechniques: [AnesthesiaTechniqueDTO] = []
     @State private var showingTechniqueSheet = false
-    @State private var positioning: Positioning?
+
     @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var isDeleting = false
-    @State private var anesthesiaId: String?
-    @State private var existingAnesthesia: SurgeryAnesthesiaDetailsDTO?
     @State private var submitVisualState: SubmitVisualState = .idle
     @State private var hasAttemptedSubmit = false
-    @State private var hasLoadedSharedPre = false
+
+    @State private var srpaId: String?
+    @State private var existingSRPA: SurgerySRPADetailsDTO?
+    @State private var anesthesiaEndAt: Date?
+    @State private var surgeryEndAt: Date?
+    @State private var hasLoadedExisting = false
+
     private static let isoDateTimeFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -57,7 +55,7 @@ struct AnesthesiaFormView: View {
             case .standalone:
                 standaloneBody
             case .wizard:
-                wizardBody
+                formContent
             }
         }
         .onAppear { loadInitialIfNeeded() }
@@ -66,51 +64,43 @@ struct AnesthesiaFormView: View {
     private var formContent: some View {
         Form {
             Section {
-                DateTimePickerSheet(
-                    date: $anesthesiaStartAt,
-                    isSelected: $hasAnesthesiaStartAt,
-                    title: "Anestesia",
-                    placeholder: "Selecionar",
-                    minDate: minDate,
-                    maxDate: maxDate
+                DetailRow(
+                    label: "Fim da cirurgia",
+                    value: surgeryEndAt
+                        .map { DateFormatterHelper.format($0, dateStyle: .medium, timeStyle: .short) }
+                    ?? "Não informado"
                 )
-                DateTimePickerSheet(
-                    date: $surgeryStartAt,
-                    isSelected: $hasSurgeryStartAt,
-                    title: "Cirurgia",
-                    placeholder: "Selecionar",
-                    minDate: minDate,
-                    maxDate: maxDate
+                DetailRow(
+                    label: "Fim da anestesia",
+                    value: anesthesiaEndAt
+                        .map { DateFormatterHelper.format($0, dateStyle: .medium, timeStyle: .short) }
+                    ?? "Não informado"
                 )
-
-               
             } header: {
-                Text("Início do Procedimento")
+                Text("Referências da Anestesia")
             }
-            if isEditingExisting {
-                Section {
+            Section {
+                DateTimePickerSheet(
+                    date: $srpaStartAt,
+                    isSelected: $hasSrpaStartAt,
+                    title: "Início SRPA",
+                    placeholder: "Selecionar",
+                    minDate: minDate,
+                    maxDate: maxDate
+                )
+                if isEditingExisting{
                     DateTimePickerSheet(
-                        date: $surgeryEndAt,
-                        isSelected: $hasSurgeryEndAt,
-                        title: "Cirurgia",
+                        date: $srpaEndAt,
+                        isSelected: $hasSrpaEndAt,
+                        title: "Alta às",
                         placeholder: "Selecionar",
                         minDate: minDate,
                         maxDate: maxDate
                     )
-                    DateTimePickerSheet(
-                        date: $anesthesiaEndAt,
-                        isSelected: $hasAnesthesiaEndAt,
-                        title: "Anestesia",
-                        placeholder: "Selecionar",
-                        minDate: minDate,
-                        maxDate: maxDate
-                    )
-                } header: {
-                    Text("Fim do Procedimento")
                 }
+            } header: {
+                Text("SRPA")
             }
-
-            
 
             Section {
                 NavigationLink {
@@ -129,26 +119,6 @@ struct AnesthesiaFormView: View {
                 }
             } header: {
                 Text("Classificação ASA")
-            }
-
-            Section {
-                NavigationLink {
-                    PositionPickerView(selection: $positioning)
-                } label: {
-                    HStack {
-                        Text("Posicionamento")
-                        Spacer()
-                        if let positioning {
-                            Text(positioning.rawValue)
-                                .foregroundStyle(.primary)
-                        } else {
-                            Text("Selecionar")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            } header: {
-                Text("Posicionamento")
             }
 
             Section {
@@ -186,13 +156,14 @@ struct AnesthesiaFormView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                
+
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
+
             Section {
                 Button {
                     Task { await submit() }
@@ -207,9 +178,9 @@ struct AnesthesiaFormView: View {
 
                 if mode == .standalone, isEditingExisting {
                     Button {
-                        Task { await deleteAnesthesia() }
+                        Task { await deleteSRPA() }
                     } label: {
-                        Text(isDeleting ? "Excluindo..." : "Excluir Anesthesia")
+                        Text(isDeleting ? "Excluindo..." : "Excluir SRPA")
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .foregroundStyle(.white)
@@ -229,7 +200,7 @@ struct AnesthesiaFormView: View {
     private var standaloneBody: some View {
         NavigationStack {
             formContent
-                .navigationTitle(isEditingExisting ? "Editar Anestesia" : "Criar Anestesia")
+                .navigationTitle(isEditingExisting ? "Editar SRPA" : "Criar SRPA")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -245,16 +216,12 @@ struct AnesthesiaFormView: View {
         }
     }
 
-    private var wizardBody: some View {
-        formContent
-    }
-
     private var isSubmitting: Bool {
         isLoading || submitVisualState == .submitting
     }
 
     private var isEditingExisting: Bool {
-        anesthesiaId != nil || initialAnesthesia != nil || existingAnesthesia != nil
+        srpaId != nil || initialSRPA != nil || existingSRPA != nil
     }
 
     private var minDate: Date {
@@ -297,54 +264,15 @@ struct AnesthesiaFormView: View {
 
     private var shouldShowValidation: Bool {
         if hasAttemptedSubmit { return true }
-        return hasAnesthesiaStartAt
-            || hasSurgeryStartAt
-            || hasSurgeryEndAt
-            || hasAnesthesiaEndAt
-            || asaSelection != nil
-            || !anesthesiaTechniques.isEmpty
+        return hasSrpaStartAt || hasSrpaEndAt || asaSelection != nil || !anesthesiaTechniques.isEmpty
     }
 
     private var validationErrorMessage: String? {
-        if isEditingExisting {
-            if !hasAnesthesiaStartAt && !hasAnesthesiaEndAt && !hasSurgeryStartAt && !hasSurgeryEndAt {
-                return "Início e fim da anestesia e cirurgia são obrigatórios"
-            }
-            if !hasAnesthesiaStartAt {
-                return "Início da anestesia é obrigatório"
-            }
-            if !hasSurgeryStartAt {
-                return "Início da cirurgia é obrigatório"
-            }
-            if !hasSurgeryEndAt {
-                return "Fim da cirurgia é obrigatório"
-            }
-            if !hasAnesthesiaEndAt {
-                return "Fim da anestesia é obrigatório"
-            }
-        } else {
-            if !hasAnesthesiaStartAt && !hasSurgeryStartAt {
-                return "Início da anestesia e da cirurgia são obrigatórios"
-            }
-            if !hasAnesthesiaStartAt {
-                return "Início da anestesia é obrigatório"
-            }
-            if !hasSurgeryStartAt {
-                return "Início da cirurgia é obrigatório"
-            }
+        if !hasSrpaStartAt {
+            return "Início da SRPA é obrigatório"
         }
-        
-        if surgeryStartAt < anesthesiaStartAt {
-            return "Cirurgia não pode começar antes da anestesia"
-        }
-        if isEditingExisting && surgeryEndAt < surgeryStartAt {
-            return "Fim da cirurgia não pode ser antes do início"
-        }
-        if isEditingExisting && anesthesiaEndAt < anesthesiaStartAt {
-            return "Fim da anestesia não pode ser antes do início"
-        }
-        if isEditingExisting && anesthesiaEndAt < surgeryEndAt {
-            return "Anestesia não pode terminar antes do fim da cirurgia"
+        if hasSrpaEndAt && srpaEndAt < srpaStartAt {
+            return "Fim da SRPA não pode ser antes do início"
         }
         if anesthesiaTechniques.isEmpty {
             return "Informe ao menos uma técnica"
@@ -356,28 +284,38 @@ struct AnesthesiaFormView: View {
     }
 
     private func loadInitialIfNeeded() {
-        print("ANESTHESIA_FORM initialAnesthesia:", initialAnesthesia?.anesthesiaId ?? "nil")
-        if let initial = initialAnesthesia {
-            applyExistingAnesthesia(initial)
+        guard !hasLoadedExisting else { return }
+        hasLoadedExisting = true
+
+        if let initial = initialSRPA {
+            applyExistingSRPA(initial)
             return
         }
-        Task { await loadSharedPreIfNeeded() }
+
+        Task { await loadExistingBySurgery() }
     }
 
-    private func loadSharedPreIfNeeded() async {
-        guard !hasLoadedSharedPre else { return }
-        hasLoadedSharedPre = true
-
+    private func loadExistingBySurgery() async {
         do {
-            let shared = try await sharedPreSession.getBySurgery(surgeryId: surgeryId)
-            applySharedPre(shared)
+            let srpa = try await srpaSession.getBySurgery(surgeryId: surgeryId)
+            applyExistingSRPA(srpa)
         } catch let authError as AuthError {
             if case .notFound = authError {
+                await loadSharedPre()
                 return
             }
             errorMessage = authError.userMessage
         } catch {
             errorMessage = AuthError.network.userMessage
+        }
+    }
+
+    private func loadSharedPre() async {
+        do {
+            let shared = try await sharedPreSession.getBySurgery(surgeryId: surgeryId)
+            applySharedPre(shared)
+        } catch {
+            return
         }
     }
 
@@ -390,39 +328,26 @@ struct AnesthesiaFormView: View {
         }
     }
 
-    private func applyExistingAnesthesia(_ anesthesia: SurgeryAnesthesiaDetailsDTO) {
-        existingAnesthesia = anesthesia
-        anesthesiaId = anesthesia.anesthesiaId
+    private func applyExistingSRPA(_ srpa: SurgerySRPADetailsDTO) {
+        existingSRPA = srpa
+        srpaId = srpa.srpaId
+        anesthesiaEndAt = srpa.anesthesiaEndAt
+        surgeryEndAt = srpa.surgeryEndAt
+        asaSelection = parseASA(srpa.asaRaw)
+        anesthesiaTechniques = srpa.anesthesiaTechniques
 
-        if let value = anesthesia.surgeryStartAt {
-            surgeryStartAt = value
-            hasSurgeryStartAt = true
+        if let value = srpa.startAt {
+            srpaStartAt = value
+            hasSrpaStartAt = true
         }
 
-        if let value = anesthesia.surgeryEndAt {
-            surgeryEndAt = value
-            hasSurgeryEndAt = true
+        if let value = srpa.endAt {
+            srpaEndAt = value
+            hasSrpaEndAt = true
         } else {
-            surgeryEndAt = surgeryStartAt
-            hasSurgeryEndAt = false
+            srpaEndAt = srpaStartAt
+            hasSrpaEndAt = false
         }
-
-        if let value = anesthesia.startAt {
-            anesthesiaStartAt = value
-            hasAnesthesiaStartAt = true
-        }
-
-        if let value = anesthesia.endAt {
-            anesthesiaEndAt = value
-            hasAnesthesiaEndAt = true
-        } else {
-            anesthesiaEndAt = anesthesiaStartAt
-            hasAnesthesiaEndAt = false
-        }
-
-        asaSelection = parseASA(anesthesia.asaRaw)
-        positioning = parsePositioning(anesthesia.positionRaw)
-        anesthesiaTechniques = anesthesia.anesthesiaTechniques
     }
 
     private func submit() async {
@@ -439,10 +364,8 @@ struct AnesthesiaFormView: View {
 
         do {
             let asaValue = asaSelection?.displayName ?? ""
-            let surgeryStartISO = Self.isoDateTimeFormatter.string(from: surgeryStartAt)
-            let surgeryEndISO = Self.isoDateTimeFormatter.string(from: surgeryEndAt)
-            let anesthesiaStartISO = Self.isoDateTimeFormatter.string(from: anesthesiaStartAt)
-            let anesthesiaEndISO = Self.isoDateTimeFormatter.string(from: anesthesiaEndAt)
+            let startISO = Self.isoDateTimeFormatter.string(from: srpaStartAt)
+            let endISO = hasSrpaEndAt ? Self.isoDateTimeFormatter.string(from: srpaEndAt) : nil
             let techniqueInputs = anesthesiaTechniques.map {
                 AnesthesiaTechniqueInput(
                     categoryRaw: $0.categoryRaw,
@@ -450,53 +373,30 @@ struct AnesthesiaFormView: View {
                     regionRaw: $0.regionRaw
                 )
             }
-            print("ANESTHESIA_SUBMIT payload:", [
-                "surgery_id": surgeryId,
-                "surgery_start_at": surgeryStartISO,
-                "surgery_end_at": surgeryEndISO,
-                "start_at": anesthesiaStartISO,
-                "end_at": anesthesiaEndISO,
-                "position_raw": positioning?.rawValue ?? "",
-                "asa_raw": asaValue,
-                "anesthesia_techniques": anesthesiaTechniques.map { [
-                    "category_raw": $0.categoryRaw,
-                    "type": $0.type,
-                    "region_raw": $0.regionRaw ?? "null",
-                ] }
-            ])
 
-            let updated: SurgeryAnesthesiaDetailsDTO
-            if let anesthesiaId {
-                print("ANESTHESIA_SUBMIT mode: PATCH", anesthesiaId)
-                let input = UpdateAnesthesiaInput(
-                    surgery_start_at: surgeryStartISO,
-                    surgery_end_at: surgeryEndISO,
-                    start_at: anesthesiaStartISO,
-                    end_at: anesthesiaEndISO,
-                    position_raw: positioning?.rawValue,
-                    asa_raw: asaValue,
+            let updated: SurgerySRPADetailsDTO
+            if let srpaId {
+                let input = UpdateSRPAInput(
+                    start_at: startISO,
+                    end_at: endISO,
                     status: nil,
-                    anesthesia_techniques: techniqueInputs
-                )
-                updated = try await anesthesiaSession.update(
-                    anesthesiaId: anesthesiaId,
-                    input: input
-                )
-            } else {
-                print("ANESTHESIA_SUBMIT mode: POST")
-                let input = CreateAnesthesiaInput(
-                    surgery_id: surgeryId,
-                    surgery_start_at: surgeryStartISO,
-                    start_at: anesthesiaStartISO,
-                    end_at: nil,
-                    position_raw: positioning?.rawValue,
                     asa_raw: asaValue,
                     anesthesia_techniques: techniqueInputs
                 )
-                updated = try await anesthesiaSession.create(input: input)
+                updated = try await srpaSession.update(srpaId: srpaId, input: input)
+            } else {
+                let input = CreateSRPAInput(
+                    surgery_id: surgeryId,
+                    start_at: startISO,
+                    end_at: endISO,
+                    status: nil,
+                    asa_raw: asaValue,
+                    anesthesia_techniques: techniqueInputs
+                )
+                updated = try await srpaSession.create(input: input)
             }
 
-            applyExistingAnesthesia(updated)
+            applyExistingSRPA(updated)
             onComplete?(updated)
             submitVisualState = .success
             try? await Task.sleep(nanoseconds: 700_000_000)
@@ -509,17 +409,17 @@ struct AnesthesiaFormView: View {
         }
     }
 
-    private func deleteAnesthesia() async {
+    private func deleteSRPA() async {
         if isDeleting || isSubmitting { return }
-        guard let anesthesiaId else { return }
+        guard let srpaId else { return }
         isDeleting = true
         errorMessage = nil
         defer { isDeleting = false }
 
         do {
-            try await anesthesiaSession.delete(anesthesiaId: anesthesiaId)
-            self.anesthesiaId = nil
-            existingAnesthesia = nil
+            try await srpaSession.delete(srpaId: srpaId)
+            self.srpaId = nil
+            existingSRPA = nil
             if mode == .standalone {
                 dismiss()
             }
@@ -537,6 +437,13 @@ struct AnesthesiaFormView: View {
         submitVisualState = .idle
     }
 
+    private func parseASA(_ value: String?) -> ASAClassification? {
+        guard let raw = value?.uppercased().replacingOccurrences(of: "ASA ", with: "") else {
+            return nil
+        }
+        return ASAClassification(rawValue: raw)
+    }
+
     private func removeTechnique(at offsets: IndexSet) {
         anesthesiaTechniques.remove(atOffsets: offsets)
     }
@@ -544,7 +451,7 @@ struct AnesthesiaFormView: View {
     private func techniqueSummary(_ technique: AnesthesiaTechniqueDTO) -> String {
         let categoryName = categoryDisplayName(technique.categoryRaw)
         let typeName = typeDisplayName(technique.type)
-        return "\(categoryName) · \(typeName)"
+        return "\(categoryName) - \(typeName)"
     }
 
     private func categoryDisplayName(_ raw: String) -> String {
@@ -558,44 +465,15 @@ struct AnesthesiaFormView: View {
     private func regionDisplayName(_ raw: String) -> String {
         AnesthesiaTechniqueRegion(rawValue: raw)?.displayName ?? raw
     }
-
-    private func parseASA(_ rawValue: String?) -> ASAClassification? {
-        guard let rawValue else { return nil }
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let lowered = trimmed.lowercased()
-        let normalized: String
-        if lowered.hasPrefix("asa") {
-            normalized = String(trimmed.dropFirst(3))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            normalized = trimmed
-        }
-
-        let normalizedLower = normalized.lowercased()
-        if let match = ASAClassification.allCases.first(where: { $0.rawValue.lowercased() == normalizedLower }) {
-            return match
-        }
-
-        return ASAClassification.allCases.first(where: { $0.displayName.lowercased() == lowered })
-    }
-
-    private func parsePositioning(_ rawValue: String?) -> Positioning? {
-        guard let rawValue else { return nil }
-        return Positioning.allCases.first { $0.rawValue == rawValue }
-    }
 }
 
-#if DEBUG
 #Preview {
-    AnesthesiaFormView(
+    SRPAFormView(
         mode: .standalone,
-        surgeryId: UUID().uuidString,
-        initialAnesthesia: nil,
-        onComplete: { _ in }
+        surgeryId: "surgery-123",
+        initialSRPA: nil,
+        onComplete: nil
     )
-    .environmentObject(AnesthesiaSession(authSession: AuthSession(), api: AnesthesiaAPI()))
+    .environmentObject(SRPASession(authSession: AuthSession(), api: SRPAAPI()))
     .environmentObject(SharedPreAnesthesiaSession(authSession: AuthSession()))
 }
-#endif

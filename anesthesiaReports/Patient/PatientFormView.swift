@@ -78,7 +78,8 @@ struct PatientFormView: View {
                     maxDate: Date()
                 )
                 HStack{
-                    Text("Número SUS")
+                    Text("SUS")
+                        .font(.subheadline)
                         .fontWeight(.bold)
                     Spacer()
                     TextField("000 0000 0000 0000", text: Binding(
@@ -104,6 +105,7 @@ struct PatientFormView: View {
                 }
                 HStack{
                     Text("Sexo")
+                        .font(.subheadline)
                         .fontWeight(.bold)
                     Spacer()
                     Picker("Sexo", selection: $sex) {

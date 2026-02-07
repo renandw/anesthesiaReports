@@ -4,6 +4,7 @@ struct SurgeryDetailView: View {
     @EnvironmentObject private var surgerySession: SurgerySession
     @EnvironmentObject private var userSession: UserSession
     @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
+    @EnvironmentObject private var srpaSession: SRPASession
     @Environment(\.dismiss) private var dismiss
 
     let surgeryId: String
@@ -16,6 +17,8 @@ struct SurgeryDetailView: View {
     @State private var showEdit = false
     @State private var showAnesthesiaProgress = false
     @State private var anesthesiaDetails: SurgeryAnesthesiaDetailsDTO?
+    @State private var showSrpaForm = false
+    @State private var srpaDetails: SurgerySRPADetailsDTO?
     @State private var showShare = false
     @State private var showDeleteConfirmation = false
     @State private var shares: [SurgeryShareDTO] = []
@@ -124,6 +127,24 @@ struct SurgeryDetailView: View {
                         }
                     } header: {
                         Text("Anesthesia")
+                    }
+
+                    Section {
+                        if srpaDetails != nil {
+                            Button {
+                                showSrpaForm = true
+                            } label: {
+                                Label("Editar SRPA", systemImage: "bed.double")
+                            }
+                        } else {
+                            Button {
+                                showSrpaForm = true
+                            } label: {
+                                Label("Criar SRPA", systemImage: "plus.circle")
+                            }
+                        }
+                    } header: {
+                        Text("SRPA")
                     }
                 }
                 
@@ -287,6 +308,20 @@ struct SurgeryDetailView: View {
             )
             .environmentObject(anesthesiaSession)
         }
+        .sheet(isPresented: $showSrpaForm, onDismiss: {
+            Task { await reloadAll() }
+        }) {
+            SRPAFormView(
+                mode: .standalone,
+                surgeryId: surgeryId,
+                initialSRPA: srpaDetails,
+                onComplete: { updated in
+                    srpaDetails = updated
+                    Task { await load() }
+                }
+            )
+            .environmentObject(srpaSession)
+        }
         .onChange(of: showShare) { oldValue, newValue in
             if oldValue && !newValue {
                 Task { await loadShares() }
@@ -300,6 +335,7 @@ struct SurgeryDetailView: View {
     private func reloadAll() async {
         await load()
         await loadAnesthesiaLookup()
+        await loadSrpaLookup()
         await loadShares()
     }
 
@@ -332,6 +368,25 @@ struct SurgeryDetailView: View {
         } catch let authError as AuthError {
             if case .notFound = authError {
                 anesthesiaDetails = nil
+            } else {
+                errorMessage = authError.userMessage
+            }
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
+    }
+
+    private func loadSrpaLookup() async {
+        guard let surgery, canEdit(surgery.resolvedPermission) else {
+            srpaDetails = nil
+            return
+        }
+
+        do {
+            srpaDetails = try await srpaSession.getBySurgery(surgeryId: surgeryId)
+        } catch let authError as AuthError {
+            if case .notFound = authError {
+                srpaDetails = nil
             } else {
                 errorMessage = authError.userMessage
             }

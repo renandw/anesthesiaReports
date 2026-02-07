@@ -31,7 +31,7 @@ struct NewAnesthesiaWizardView: View {
         
         NavigationStack {
             VStack(spacing: 0) {
-                header
+                
 
                 Divider()
 
@@ -55,44 +55,6 @@ struct NewAnesthesiaWizardView: View {
 }
 
 private extension NewAnesthesiaWizardView {
-    var header: some View {
-        VStack(spacing: 8) {
-            HStack {
-                if step > 1 {
-                    Button("Voltar") {
-                        goBack()
-                    }
-                } else {
-                    Spacer().frame(width: 56)
-                }
-                Spacer()
-                Text("Etapa \(step) de 3")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Spacer().frame(width: 56)
-            }
-            .padding(.horizontal, 16)
-
-            HStack {
-                Text(stepTitle)
-                    .font(.title3.bold())
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
-    }
-
-    var stepTitle: String {
-        switch step {
-        case 1: return "Paciente"
-        case 2: return "Cirurgia"
-        default: return "Anestesia"
-        }
-    }
-
     @ViewBuilder
     var content: some View {
         switch step {

@@ -483,6 +483,74 @@ struct SurgeryAnesthesiaResponse: Decodable {
     let anesthesia: SurgeryAnesthesiaDetailsDTO
 }
 
+struct SharedPreAnesthesiaDTO: Decodable {
+    let sharedId: String
+    let surgeryId: String
+    let asaRaw: String?
+    let anesthesiaTechniques: [AnesthesiaTechniqueDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case sharedId = "shared_id"
+        case surgeryId = "surgery_id"
+        case asaRaw = "asa_raw"
+        case anesthesiaTechniques = "anesthesia_techniques"
+    }
+}
+
+struct SharedPreAnesthesiaResponse: Decodable {
+    let sharedPreAnesthesia: SharedPreAnesthesiaDTO
+
+    enum CodingKeys: String, CodingKey {
+        case sharedPreAnesthesia = "shared_pre_anesthesia"
+    }
+}
+
+struct SurgerySRPADetailsDTO: Decodable {
+    let srpaId: String
+    let sharedId: String
+    let status: String
+    let startAt: Date?
+    let endAt: Date?
+    let surgeryEndAt: Date?
+    let anesthesiaEndAt: Date?
+    let asaRaw: String?
+    let anesthesiaTechniques: [AnesthesiaTechniqueDTO]
+    let createdAt: Date
+    let createdBy: String
+    let updatedAt: Date?
+    let updatedBy: String?
+    let lastActivityAt: Date?
+    let lastActivityBy: String?
+    let version: Int
+    let syncStatus: String
+    let lastSyncAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case srpaId = "srpa_id"
+        case sharedId = "shared_id"
+        case status
+        case startAt = "start_at"
+        case endAt = "end_at"
+        case surgeryEndAt = "surgery_end_at"
+        case anesthesiaEndAt = "anesthesia_end_at"
+        case asaRaw = "asa_raw"
+        case anesthesiaTechniques = "anesthesia_techniques"
+        case createdAt = "created_at"
+        case createdBy = "created_by"
+        case updatedAt = "updated_at"
+        case updatedBy = "updated_by"
+        case lastActivityAt = "last_activity_at"
+        case lastActivityBy = "last_activity_by"
+        case version
+        case syncStatus = "sync_status"
+        case lastSyncAt = "last_sync_at"
+    }
+}
+
+struct SurgerySRPAResponse: Decodable {
+    let srpa: SurgerySRPADetailsDTO
+}
+
 struct AnesthesiaTechniqueDTO: Codable, Hashable {
     let techniqueId: String?
     let categoryRaw: String
@@ -575,6 +643,53 @@ struct UpdateAnesthesiaInput: Encodable {
         self.position_raw = position_raw
         self.asa_raw = asa_raw
         self.status = status
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
+
+struct CreateSRPAInput: Encodable {
+    let surgery_id: String
+    let start_at: String
+    let end_at: String?
+    let status: String?
+    let asa_raw: String
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        surgery_id: String,
+        start_at: String,
+        end_at: String?,
+        status: String?,
+        asa_raw: String,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.surgery_id = surgery_id
+        self.start_at = start_at
+        self.end_at = end_at
+        self.status = status
+        self.asa_raw = asa_raw
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
+
+struct UpdateSRPAInput: Encodable {
+    let start_at: String
+    let end_at: String?
+    let status: String?
+    let asa_raw: String
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        start_at: String,
+        end_at: String?,
+        status: String?,
+        asa_raw: String,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.start_at = start_at
+        self.end_at = end_at
+        self.status = status
+        self.asa_raw = asa_raw
         self.anesthesia_techniques = anesthesia_techniques
     }
 }

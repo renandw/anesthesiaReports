@@ -23,6 +23,17 @@ Estado atual das views de cirurgia (iOS), responsabilidades, problemas identific
 - Seção CBHPM simplificada: total de itens + `NavigationLink` para lista dedicada.
 - Seção financeiro agora abre tela dedicada (`FinancialDetailView`) via `NavigationLink`.
 - Ação de excluir cirurgia implementada no menu (com confirmação).
+- Seções Anesthesia e SRPA integradas ao detalhe com criação/edição via sheets.
+
+### AnesthesiaFormView
+- Usa `SharedPreAnesthesiaSession` para pré-carregar `asa_raw` e `anesthesia_techniques` quando não há `initialAnesthesia`.
+- Mantém validação de início/fim e técnicas obrigatórias.
+- `ASA` e técnicas agora podem ser preenchidas a partir do aggregate compartilhado.
+
+### SRPAFormView
+- Usa `SharedPreAnesthesiaSession` quando SRPA não existe para buscar `asa_raw` e `anesthesia_techniques`.
+- Mantém `start_at` obrigatório e validação de `end_at >= start_at`.
+- Mostra `surgery_end_at` e `anesthesia_end_at` como referência (quando SRPA existe).
 
 ### FinancialDetailView / FinancialFormView
 - `FinancialDetailView` concentra visualização do agregado financeiro da cirurgia.
