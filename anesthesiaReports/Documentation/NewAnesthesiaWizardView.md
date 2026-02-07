@@ -167,6 +167,116 @@ Esse wizard **deve sempre utilizar `Mode.wizard`** para:
 
 ---
 
+## Encaminhamento ao Detalhe (Opção A)
+
+Para evitar o botão “voltar” retornar ao Step 3, a estratégia recomendada é:\n
+
+1. Wizard finaliza e chama `onFinish(surgery, anesthesia)`.\n
+2. Wizard executa `dismiss()` (fecha o sheet do wizard).\n
+3. A view pai (ex.: Dashboard) abre `AnesthesiaDetailView` em um **sheet separado**.
+
+Isso garante que o detalhe não fique dentro do stack do wizard.
+
+### Implementação (detalhada)
+
+**No `NewAnesthesiaWizardView`:**
+
+- Adicionar callback opcional:
+  ```swift
+  let onFinish: ((SurgeryDTO, SurgeryAnesthesiaDetailsDTO) -> Void)?
+  ```
+- Criar `init` para permitir instanciar sem callback:
+  ```swift
+  init(onFinish: ((SurgeryDTO, SurgeryAnesthesiaDetailsDTO) -> Void)? = nil) {
+      self.onFinish = onFinish
+  }
+  ```
+- No Step 3:
+  - se a anestesia já existir:
+    ```swift
+    onFinish?(surgery, existingAnesthesia)
+    dismiss()
+    ```
+  - se criar anestesia:
+    ```swift
+    onFinish?(surgery, createdAnesthesia)
+    dismiss()
+    ```
+
+**No `DashboardView`:**
+
+- Estados adicionais:
+  ```swift
+  @State private var showWizard = false
+  @State private var showAnesthesiaDetail = false
+  @State private var wizardSurgery: SurgeryDTO?
+  @State private var wizardAnesthesia: SurgeryAnesthesiaDetailsDTO?
+  ```
+
+- Ao abrir o wizard:
+  ```swift
+  .sheet(isPresented: $showWizard) {
+      NewAnesthesiaWizardView { surgery, anesthesia in
+          wizardSurgery = surgery
+          wizardAnesthesia = anesthesia
+          showWizard = false
+          showAnesthesiaDetail = true
+      }
+  }
+  ```
+
+- Abrir detalhe em sheet separado:
+  ```swift
+  .sheet(isPresented: $showAnesthesiaDetail) {
+      if let surgery = wizardSurgery, let anesthesia = wizardAnesthesia {
+          AnesthesiaDetailView(
+              surgeryId: surgery.id,
+              initialSurgery: surgery,
+              initialAnesthesia: anesthesia
+          )
+      }
+  }
+  ```
+
+Com isso, o detalhe não fica preso no stack do wizard e o botão “voltar” não retorna ao Step 3.
+
+### Ajuste adicional (evitar sheet vazio)
+
+Para evitar o detalhe abrir “vazio” por timing (dados ainda nil), use `sheet(item:)` com um payload único.
+
+**No `DashboardView`:**
+
+```swift
+@State private var wizardAnesthesiaResult: WizardAnesthesiaResult?
+
+struct WizardAnesthesiaResult: Identifiable {
+    let id = UUID()
+    let surgery: SurgeryDTO
+    let anesthesia: SurgeryAnesthesiaDetailsDTO
+}
+
+.sheet(item: $wizardAnesthesiaResult) { result in
+    AnesthesiaDetailView(
+        surgeryId: result.surgery.id,
+        initialSurgery: result.surgery,
+        initialAnesthesia: result.anesthesia
+    )
+}
+```
+
+**Quando o wizard finaliza:**
+
+```swift
+NewAnesthesiaWizardView { surgery, anesthesia in
+    wizardAnesthesiaResult = WizardAnesthesiaResult(surgery: surgery, anesthesia: anesthesia)
+    showWizard = false
+}
+```
+
+Assim, o detalhe só abre quando ambos os dados existem.
+
+---
+
 ## Ajustes necessários nos FormViews (para Wizard)
 
 1) **PatientFormView**

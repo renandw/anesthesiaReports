@@ -4,6 +4,11 @@ struct DashboardView: View {
 
     @EnvironmentObject private var session: AuthSession
     @EnvironmentObject private var userSession: UserSession
+    @EnvironmentObject private var patientSession: PatientSession
+    @EnvironmentObject private var surgerySession: SurgerySession
+    @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
+    @State private var showWizard = false
+    @State private var wizardAnesthesiaResult: WizardAnesthesiaResult?
 
     var body: some View {
         ScrollView {
@@ -25,6 +30,10 @@ struct DashboardView: View {
                         
                         NavigationLink("Lista de Pacientes") {
                             PatientsListView()
+                        }
+                        
+                        Button("Nova Anestesia (Wizard)") {
+                            showWizard = true
                         }
                         
                         NavigationLink("Editar Usuário") {
@@ -52,5 +61,27 @@ struct DashboardView: View {
             
         }
         .background(Color(.tertiarySystemGroupedBackground))
+        .sheet(isPresented: $showWizard) {
+            NewAnesthesiaWizardView { surgery, anesthesia in
+                wizardAnesthesiaResult = WizardAnesthesiaResult(surgery: surgery, anesthesia: anesthesia)
+                showWizard = false
+            }
+        }
+        .sheet(item: $wizardAnesthesiaResult) { result in
+            AnesthesiaDetailView(
+                surgeryId: result.surgery.id,
+                initialSurgery: result.surgery,
+                initialAnesthesia: result.anesthesia
+            )
+            .environmentObject(surgerySession)
+            .environmentObject(anesthesiaSession)
+            .environmentObject(patientSession)
+        }
     }
+}
+
+private struct WizardAnesthesiaResult: Identifiable {
+    let id = UUID()
+    let surgery: SurgeryDTO
+    let anesthesia: SurgeryAnesthesiaDetailsDTO
 }
