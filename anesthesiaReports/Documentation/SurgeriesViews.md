@@ -24,6 +24,7 @@ Estado atual das views de cirurgia (iOS), responsabilidades, problemas identific
 - Seção financeiro agora abre tela dedicada (`FinancialDetailView`) via `NavigationLink`.
 - Ação de excluir cirurgia implementada no menu (com confirmação).
 - Seções Anesthesia e SRPA integradas ao detalhe com criação/edição via sheets.
+- Quando SRPA existe, navega para `SRPADetailView` (novo detalhe específico).
 
 ### AnesthesiaFormView
 - Usa `SharedPreAnesthesiaSession` para pré-carregar `asa_raw` e `anesthesia_techniques` quando não há `initialAnesthesia`.
@@ -34,6 +35,14 @@ Estado atual das views de cirurgia (iOS), responsabilidades, problemas identific
 - Usa `SharedPreAnesthesiaSession` quando SRPA não existe para buscar `asa_raw` e `anesthesia_techniques`.
 - Mantém `start_at` obrigatório e validação de `end_at >= start_at`.
 - Mostra `surgery_end_at` e `anesthesia_end_at` como referência (quando SRPA existe).
+
+### SRPADetailView
+- Tela dedicada ao SRPA, com picker segmentado e seções similares ao fluxo de Anesthesia.
+- `SRPAIdentificationView` mostra paciente, cirurgia e início do SRPA e oferece edição via sheets.
+
+### NewSRPAWizardView
+- Wizard linear (Paciente → Cirurgia → SRPA), espelhando o fluxo do `NewAnesthesiaWizardView`.
+- Quando SRPA já existir, oferece atalho para `SRPADetailView`.
 
 ### FinancialDetailView / FinancialFormView
 - `FinancialDetailView` concentra visualização do agregado financeiro da cirurgia.

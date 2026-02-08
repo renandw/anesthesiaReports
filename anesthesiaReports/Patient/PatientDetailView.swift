@@ -4,6 +4,10 @@ struct PatientDetailView: View {
     @EnvironmentObject private var patientSession: PatientSession
     @EnvironmentObject private var userSession: UserSession
     @EnvironmentObject private var surgerySession: SurgerySession
+    @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
+    @EnvironmentObject private var srpaSession: SRPASession
+    @EnvironmentObject private var preanesthesiaSession: PreanesthesiaSession
+    @EnvironmentObject private var sharedPreSession: SharedPreAnesthesiaSession
     @Environment(\.dismiss) private var dismiss
 
     let patientId: String
@@ -89,6 +93,10 @@ struct PatientDetailView: View {
                                 SurgeryDetailView(surgeryId: surgery.id)
                                     .environmentObject(surgerySession)
                                     .environmentObject(userSession)
+                                    .environmentObject(anesthesiaSession)
+                                    .environmentObject(srpaSession)
+                                    .environmentObject(preanesthesiaSession)
+                                    .environmentObject(sharedPreSession)
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {

@@ -551,6 +551,76 @@ struct SurgerySRPAResponse: Decodable {
     let srpa: SurgerySRPADetailsDTO
 }
 
+struct SurgeryPreanesthesiaDetailsDTO: Decodable {
+    let preanesthesiaId: String
+    let sharedId: String
+    let status: String
+    let asaRaw: String?
+    let anesthesiaTechniques: [AnesthesiaTechniqueDTO]
+    let createdAt: Date
+    let createdBy: String
+    let updatedAt: Date?
+    let updatedBy: String?
+    let lastActivityAt: Date?
+    let lastActivityBy: String?
+    let version: Int
+    let syncStatus: String
+    let lastSyncAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case preanesthesiaId = "preanesthesia_id"
+        case sharedId = "shared_id"
+        case status
+        case asaRaw = "asa_raw"
+        case anesthesiaTechniques = "anesthesia_techniques"
+        case createdAt = "created_at"
+        case createdBy = "created_by"
+        case updatedAt = "updated_at"
+        case updatedBy = "updated_by"
+        case lastActivityAt = "last_activity_at"
+        case lastActivityBy = "last_activity_by"
+        case version
+        case syncStatus = "sync_status"
+        case lastSyncAt = "last_sync_at"
+    }
+}
+
+struct SurgeryPreanesthesiaResponse: Decodable {
+    let preanesthesia: SurgeryPreanesthesiaDetailsDTO
+}
+
+struct PreanesthesiaClearanceItemDTO: Decodable, Hashable {
+    let itemType: String
+    let itemValue: String
+
+    enum CodingKeys: String, CodingKey {
+        case itemType = "item_type"
+        case itemValue = "item_value"
+    }
+}
+
+struct PreanesthesiaClearanceDTO: Decodable {
+    let clearanceId: String
+    let preanesthesiaId: String
+    let status: String
+    let items: [PreanesthesiaClearanceItemDTO]
+    let createdAt: Date
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case clearanceId = "clearance_id"
+        case preanesthesiaId = "preanesthesia_id"
+        case status
+        case items
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct PreanesthesiaClearanceResponse: Decodable {
+    let clearance: PreanesthesiaClearanceDTO
+}
+
 struct AnesthesiaTechniqueDTO: Codable, Hashable {
     let techniqueId: String?
     let categoryRaw: String
@@ -692,4 +762,49 @@ struct UpdateSRPAInput: Encodable {
         self.asa_raw = asa_raw
         self.anesthesia_techniques = anesthesia_techniques
     }
+}
+
+struct CreatePreanesthesiaInput: Encodable {
+    let surgery_id: String
+    let status: String?
+    let asa_raw: String
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        surgery_id: String,
+        status: String?,
+        asa_raw: String,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.surgery_id = surgery_id
+        self.status = status
+        self.asa_raw = asa_raw
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
+
+struct UpdatePreanesthesiaInput: Encodable {
+    let status: String?
+    let asa_raw: String
+    let anesthesia_techniques: [AnesthesiaTechniqueInput]
+
+    init(
+        status: String?,
+        asa_raw: String,
+        anesthesia_techniques: [AnesthesiaTechniqueInput] = []
+    ) {
+        self.status = status
+        self.asa_raw = asa_raw
+        self.anesthesia_techniques = anesthesia_techniques
+    }
+}
+
+struct UpsertPreanesthesiaClearanceInput: Encodable {
+    let status: String
+    let items: [PreanesthesiaClearanceItemInput]
+}
+
+struct PreanesthesiaClearanceItemInput: Encodable, Hashable {
+    let item_type: String
+    let item_value: String
 }

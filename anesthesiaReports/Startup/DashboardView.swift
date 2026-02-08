@@ -7,8 +7,11 @@ struct DashboardView: View {
     @EnvironmentObject private var patientSession: PatientSession
     @EnvironmentObject private var surgerySession: SurgerySession
     @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
+    @EnvironmentObject private var srpaSession: SRPASession
     @State private var showWizard = false
+    @State private var showSRPAWizard = false
     @State private var wizardAnesthesiaResult: WizardAnesthesiaResult?
+    @State private var wizardSRPAResult: WizardSRPAResult?
 
     var body: some View {
         ScrollView {
@@ -34,6 +37,10 @@ struct DashboardView: View {
                         
                         Button("Nova Anestesia (Wizard)") {
                             showWizard = true
+                        }
+                        
+                        Button("Nova SRPA (Wizard)") {
+                            showSRPAWizard = true
                         }
                         
                         NavigationLink("Editar Usuário") {
@@ -67,6 +74,12 @@ struct DashboardView: View {
                 showWizard = false
             }
         }
+        .sheet(isPresented: $showSRPAWizard) {
+            NewSRPAWizardView { surgery, srpa in
+                wizardSRPAResult = WizardSRPAResult(surgery: surgery, srpa: srpa)
+                showSRPAWizard = false
+            }
+        }
         .sheet(item: $wizardAnesthesiaResult) { result in
             AnesthesiaDetailView(
                 surgeryId: result.surgery.id,
@@ -77,6 +90,16 @@ struct DashboardView: View {
             .environmentObject(anesthesiaSession)
             .environmentObject(patientSession)
         }
+        .sheet(item: $wizardSRPAResult) { result in
+            SRPADetailView(
+                surgeryId: result.surgery.id,
+                initialSurgery: result.surgery,
+                initialSRPA: result.srpa
+            )
+            .environmentObject(surgerySession)
+            .environmentObject(srpaSession)
+            .environmentObject(patientSession)
+        }
     }
 }
 
@@ -84,4 +107,10 @@ private struct WizardAnesthesiaResult: Identifiable {
     let id = UUID()
     let surgery: SurgeryDTO
     let anesthesia: SurgeryAnesthesiaDetailsDTO
+}
+
+private struct WizardSRPAResult: Identifiable {
+    let id = UUID()
+    let surgery: SurgeryDTO
+    let srpa: SurgerySRPADetailsDTO
 }

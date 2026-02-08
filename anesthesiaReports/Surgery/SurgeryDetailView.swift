@@ -5,6 +5,8 @@ struct SurgeryDetailView: View {
     @EnvironmentObject private var userSession: UserSession
     @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
     @EnvironmentObject private var srpaSession: SRPASession
+    @EnvironmentObject private var preanesthesiaSession: PreanesthesiaSession
+    @EnvironmentObject private var sharedPreSession: SharedPreAnesthesiaSession
     @Environment(\.dismiss) private var dismiss
 
     let surgeryId: String
@@ -17,6 +19,8 @@ struct SurgeryDetailView: View {
     @State private var showEdit = false
     @State private var showAnesthesiaProgress = false
     @State private var anesthesiaDetails: SurgeryAnesthesiaDetailsDTO?
+    @State private var showPreanesthesiaForm = false
+    @State private var preanesthesiaDetails: SurgeryPreanesthesiaDetailsDTO?
     @State private var showSrpaForm = false
     @State private var srpaDetails: SurgerySRPADetailsDTO?
     @State private var showShare = false
@@ -73,18 +77,15 @@ struct SurgeryDetailView: View {
                         Text("Nenhum CBHPM")
                             .foregroundStyle(.secondary)
                     } else {
-                        HStack {
-                            Text("Total")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(surgery.cbhpms.count) \(surgery.cbhpms.count == 1 ? "item" : "itens")")
-                                .fontWeight(.bold)
-                        }
-
                         NavigationLink {
                             SurgeryCbhpmsListView(cbhpms: surgery.cbhpms)
                         } label: {
-                            Label("Ver lista completa", systemImage: "list.bullet")
+                            Label("Ver procedimentos", systemImage: "list.bullet")
+                            Spacer()
+                            Text("\(surgery.cbhpms.count) \(surgery.cbhpms.count == 1 ? "item" : "itens")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fontWeight(.bold)
                         }
                     }
                 } header: {
@@ -108,6 +109,31 @@ struct SurgeryDetailView: View {
 
                 if canEdit(surgery.resolvedPermission) {
                     Section {
+                        if let preanesthesia = preanesthesiaDetails {
+                            NavigationLink {
+                                PreanesthesiaFormView(
+                                    surgeryId: surgeryId,
+                                    initialPreanesthesia: preanesthesia,
+                                    mode: .standalone,
+                                    onSaved: { updated in
+                                        preanesthesiaDetails = updated
+                                    }
+                                )
+                            } label: {
+                                Label("Editar Pré-anestesia", systemImage: "doc.text.magnifyingglass")
+                            }
+                        } else {
+                            Button {
+                                showPreanesthesiaForm = true
+                            } label: {
+                                Label("Criar Pré-anestesia", systemImage: "plus.circle")
+                            }
+                        }
+                    } header: {
+                        Text("Preanesthesia")
+                    }
+
+                    Section {
                         if let anesthesia = anesthesiaDetails {
                             NavigationLink {
                                 AnesthesiaDetailView(
@@ -130,11 +156,15 @@ struct SurgeryDetailView: View {
                     }
 
                     Section {
-                        if srpaDetails != nil {
-                            Button {
-                                showSrpaForm = true
+                        if let srpa = srpaDetails {
+                            NavigationLink {
+                                SRPADetailView(
+                                    surgeryId: surgeryId,
+                                    initialSurgery: surgery,
+                                    initialSRPA: srpa
+                                )
                             } label: {
-                                Label("Editar SRPA", systemImage: "bed.double")
+                                Label("Detalhes do SRPA", systemImage: "bed.double")
                             }
                         } else {
                             Button {
@@ -307,6 +337,24 @@ struct SurgeryDetailView: View {
                 }
             )
             .environmentObject(anesthesiaSession)
+            .environmentObject(sharedPreSession)
+        }
+        .sheet(isPresented: $showPreanesthesiaForm, onDismiss: {
+            Task { await reloadAll() }
+        }) {
+            NavigationStack {
+                PreanesthesiaFormView(
+                    surgeryId: surgeryId,
+                    initialPreanesthesia: preanesthesiaDetails,
+                    mode: .standalone,
+                    onSaved: { updated in
+                        preanesthesiaDetails = updated
+                        Task { await load() }
+                    }
+                )
+                .environmentObject(preanesthesiaSession)
+                .environmentObject(sharedPreSession)
+            }
         }
         .sheet(isPresented: $showSrpaForm, onDismiss: {
             Task { await reloadAll() }
@@ -334,6 +382,7 @@ struct SurgeryDetailView: View {
 
     private func reloadAll() async {
         await load()
+        await loadPreanesthesiaLookup()
         await loadAnesthesiaLookup()
         await loadSrpaLookup()
         await loadShares()
@@ -368,6 +417,25 @@ struct SurgeryDetailView: View {
         } catch let authError as AuthError {
             if case .notFound = authError {
                 anesthesiaDetails = nil
+            } else {
+                errorMessage = authError.userMessage
+            }
+        } catch {
+            errorMessage = AuthError.network.userMessage
+        }
+    }
+
+    private func loadPreanesthesiaLookup() async {
+        guard let surgery, canEdit(surgery.resolvedPermission) else {
+            preanesthesiaDetails = nil
+            return
+        }
+
+        do {
+            preanesthesiaDetails = try await preanesthesiaSession.getBySurgery(surgeryId: surgeryId)
+        } catch let authError as AuthError {
+            if case .notFound = authError {
+                preanesthesiaDetails = nil
             } else {
                 errorMessage = authError.userMessage
             }
