@@ -8,10 +8,14 @@ struct DashboardView: View {
     @EnvironmentObject private var surgerySession: SurgerySession
     @EnvironmentObject private var anesthesiaSession: AnesthesiaSession
     @EnvironmentObject private var srpaSession: SRPASession
+    @EnvironmentObject private var preanesthesiaSession: PreanesthesiaSession
+    @EnvironmentObject private var sharedPreSession: SharedPreAnesthesiaSession
     @State private var showWizard = false
     @State private var showSRPAWizard = false
+    @State private var showPreanesthesiaWizard = false
     @State private var wizardAnesthesiaResult: WizardAnesthesiaResult?
     @State private var wizardSRPAResult: WizardSRPAResult?
+    @State private var wizardPreanesthesiaResult: WizardPreanesthesiaResult?
 
     var body: some View {
         ScrollView {
@@ -41,6 +45,10 @@ struct DashboardView: View {
                         
                         Button("Nova SRPA (Wizard)") {
                             showSRPAWizard = true
+                        }
+
+                        Button("Nova Pré-anestesia (Wizard)") {
+                            showPreanesthesiaWizard = true
                         }
                         
                         NavigationLink("Editar Usuário") {
@@ -80,6 +88,17 @@ struct DashboardView: View {
                 showSRPAWizard = false
             }
         }
+        .sheet(isPresented: $showPreanesthesiaWizard) {
+            NewPreanesthesiaWizardView { surgery, preanesthesia in
+                wizardPreanesthesiaResult = WizardPreanesthesiaResult(
+                    surgery: surgery,
+                    preanesthesia: preanesthesia
+                )
+                showPreanesthesiaWizard = false
+            }
+            .environmentObject(preanesthesiaSession)
+            .environmentObject(sharedPreSession)
+        }
         .sheet(item: $wizardAnesthesiaResult) { result in
             AnesthesiaDetailView(
                 surgeryId: result.surgery.id,
@@ -100,6 +119,13 @@ struct DashboardView: View {
             .environmentObject(srpaSession)
             .environmentObject(patientSession)
         }
+        .sheet(item: $wizardPreanesthesiaResult) { result in
+            PreanesthesiaDetailView(
+                surgeryId: result.surgery.id,
+                initialPreanesthesia: result.preanesthesia
+            )
+            .environmentObject(preanesthesiaSession)
+        }
     }
 }
 
@@ -113,4 +139,10 @@ private struct WizardSRPAResult: Identifiable {
     let id = UUID()
     let surgery: SurgeryDTO
     let srpa: SurgerySRPADetailsDTO
+}
+
+private struct WizardPreanesthesiaResult: Identifiable {
+    let id = UUID()
+    let surgery: SurgeryDTO
+    let preanesthesia: SurgeryPreanesthesiaDetailsDTO
 }

@@ -1,58 +1,76 @@
 import SwiftUI
 
 struct PreanesthesiaClearanceSection: View {
-    let clearance: PreanesthesiaClearanceDTO?
-    let onEdit: () -> Void
+    let status: ClearanceStatus?
+    let items: [String]
+    let onEdit: (ClearanceStatus, [String]) -> Void
 
     var body: some View {
+        
         Section {
-            if let clearance {
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(clearance.status.capitalized)
-                        .foregroundStyle(.secondary)
-                }
-
-                if clearance.items.isEmpty {
-                    Text("Sem itens cadastrados")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(clearance.items, id: \.self) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.itemValue)
-                            Text(item.itemType.replacingOccurrences(of: "_", with: " ").capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+            if let status {
+                NavigationLink {
+                    PreanesthesiaClearancePickerView(
+                        status: status,
+                        selectedItems: items,
+                        onSave: onEdit
+                    )
+                } label: {
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        Text(status.displayName)
+                            .foregroundStyle(.secondary)
                     }
                 }
+//
+//                if items.isEmpty {
+//                    Text("Sem itens cadastrados")
+//                        .foregroundStyle(.secondary)
+//                } else {
+//                    ForEach(displayItems, id: \.self) { item in
+//                        VStack(alignment: .leading, spacing: 4) {
+//                            Text(item)
+//                            Text(status.sectionTitle)
+//                                .font(.caption)
+//                                .foregroundStyle(.secondary)
+//                        }
+//                    }
+//                }
             } else {
-                Text("Sem clearance cadastrado")
-                    .foregroundStyle(.secondary)
+                NavigationLink {
+                    PreanesthesiaClearancePickerView(
+                        status: .able,
+                        selectedItems: items,
+                        onSave: onEdit
+                    )
+                } label: {
+                    Text("Selecione")
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Button("Editar clearance") {
-                onEdit()
-            }
         } header: {
             Text("Liberação para Procedimento")
+        }
+    }
+
+    private var displayItems: [String] {
+        items.compactMap { raw in
+            if let item = status?.availableItems.first(where: { $0.rawValue == raw }) {
+                return item.displayName
+            }
+            return raw
         }
     }
 }
 
 #Preview {
     List {
-        PreanesthesiaClearanceSection(clearance: PreanesthesiaClearanceDTO(
-            clearanceId: "clearance",
-            preanesthesiaId: "pre",
-            status: "able",
-            items: [
-                PreanesthesiaClearanceItemDTO(itemType: "recommendation", itemValue: "Jejum 8h"),
-                PreanesthesiaClearanceItemDTO(itemType: "able_recommendation", itemValue: "Hidratar bem")
-            ],
-            createdAt: Date(),
-            updatedAt: Date()
-        ), onEdit: {})
+        PreanesthesiaClearanceSection(
+            status: .able,
+            items: ["adaptedFasting", "Hidratar bem"],
+            onEdit: { _, _ in }
+        )
     }
 }

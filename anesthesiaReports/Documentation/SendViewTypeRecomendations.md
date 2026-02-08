@@ -61,6 +61,19 @@ Esse estado governa:
   - cor vermelha
   - mostrar `errorMessage`
 
+## Delete (destrutivo) — recomendação
+
+Quando houver ação de delete, usar o mesmo state machine (idle/submitting/success/failure) com:
+
+- **Idle**: `Excluir ...` (vermelho)
+- **Submitting**: `Excluindo...` (vermelho, disabled)
+- **Success**: `Excluída` (verde) → fechar tela se `standalone`
+- **Failure**: `Falha` (vermelho) + `errorMessage`
+
+Regras:
+- Confirmar com `alert` antes do delete.
+- Não fechar tela em modo wizard.
+
 ## Regras anti-rate-limit
 
 - Sempre bloquear toque duplo com `disabled` enquanto `submitting`.

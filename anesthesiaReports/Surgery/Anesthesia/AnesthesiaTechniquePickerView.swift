@@ -60,8 +60,8 @@ struct AnesthesiaTechniquePickerView: View {
                 }
             }
             .onAppear { syncDefaults() }
-            .onChange(of: selectedCategory) { _ in syncDefaults() }
-            .onChange(of: selectedType) { _ in syncRegionForType() }
+            .onChange(of: selectedCategory) { _, _ in syncDefaults() }
+            .onChange(of: selectedType) { _, _ in syncRegionForType() }
         }
     }
 

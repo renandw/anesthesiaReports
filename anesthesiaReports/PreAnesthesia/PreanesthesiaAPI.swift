@@ -52,31 +52,4 @@ struct PreanesthesiaAPI {
             requiresAuth: true
         ) as EmptyResponse
     }
-
-    func getClearance(preanesthesiaId: String) async throws -> PreanesthesiaClearanceDTO {
-        let response: PreanesthesiaClearanceResponse = try await client.request(
-            path: "/preanesthesia/\(preanesthesiaId)/clearance",
-            method: "GET",
-            requiresAuth: true
-        )
-        return response.clearance
-    }
-
-    func upsertClearance(preanesthesiaId: String, input: UpsertPreanesthesiaClearanceInput) async throws -> PreanesthesiaClearanceDTO {
-        let response: PreanesthesiaClearanceResponse = try await client.request(
-            path: "/preanesthesia/\(preanesthesiaId)/clearance",
-            method: "PUT",
-            body: input,
-            requiresAuth: true
-        )
-        return response.clearance
-    }
-
-    func deleteClearance(preanesthesiaId: String) async throws {
-        _ = try await client.request(
-            path: "/preanesthesia/\(preanesthesiaId)/clearance",
-            method: "DELETE",
-            requiresAuth: true
-        ) as EmptyResponse
-    }
 }

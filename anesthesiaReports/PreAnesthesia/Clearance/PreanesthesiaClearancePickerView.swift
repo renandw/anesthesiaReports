@@ -5,6 +5,7 @@ struct PreanesthesiaClearancePickerView: View {
 
     @State private var status: ClearanceStatus
     @State private var selectedItems: Set<String>
+    @State private var customItem = ""
 
     let onSave: (ClearanceStatus, [String]) -> Void
 
@@ -24,7 +25,7 @@ struct PreanesthesiaClearancePickerView: View {
                 Section {
                     Picker("Status", selection: $status) {
                         ForEach(ClearanceStatus.allCases, id: \.self) { status in
-                            Label(status.displayName, systemImage: status.icon)
+                            Text(status.displayName)
                                 .foregroundStyle(status.color)
                                 .tag(status)
                         }
@@ -34,14 +35,14 @@ struct PreanesthesiaClearancePickerView: View {
                 }
 
                 Section {
-                    ForEach(status.availableItems, id: \.rawValue) { item in
+                    ForEach(allItems, id: \.self) { raw in
                         Button {
-                            toggle(item.rawValue)
+                            toggle(raw)
                         } label: {
                             HStack {
-                                Text(item.displayName)
+                                Text(displayName(for: raw))
                                 Spacer()
-                                if selectedItems.contains(item.rawValue) {
+                                if selectedItems.contains(raw) {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(.tint)
                                 }
@@ -49,16 +50,29 @@ struct PreanesthesiaClearancePickerView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    HStack{
+                        TextField("Adicionar Recomendação", text: $customItem)
+                            .textInputAutocapitalization(.sentences)
+                            .submitLabel(.done)
+                            .onSubmit { addCustomItem() }
+                        Spacer()
+                        Button{
+                            addCustomItem()
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .disabled(customItem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 } header: {
                     Text(status.sectionTitle)
                 }
             }
-            .navigationTitle("Clearance")
+            .navigationTitle("Avaliação")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancelar", systemImage: "xmark") { dismiss() }
-                }
+//                ToolbarItem(placement: .cancellationAction) {
+//                    Button("Cancelar", systemImage: "xmark") { dismiss() }
+//                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salvar") {
                         onSave(status, Array(selectedItems))
@@ -66,8 +80,9 @@ struct PreanesthesiaClearancePickerView: View {
                     }
                 }
             }
-            .onChange(of: status) { _ in
+            .onChange(of: status) { _, _ in
                 selectedItems.removeAll()
+                customItem = ""
             }
         }
     }
@@ -78,6 +93,32 @@ struct PreanesthesiaClearancePickerView: View {
         } else {
             selectedItems.insert(raw)
         }
+    }
+
+    private func displayName(for raw: String) -> String {
+        if let item = status.availableItems.first(where: { $0.rawValue == raw }) {
+            return item.displayName
+        }
+        return raw
+    }
+
+    private var allItems: [String] {
+        let predefined = status.availableItems.map(\.rawValue)
+        let custom = selectedItems.filter { !predefined.contains($0) }
+        return predefined + custom.sorted()
+    }
+
+    private func addCustomItem() {
+        let trimmed = customItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let normalized = trimmed.lowercased()
+        let existing = selectedItems.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        guard !existing.contains(normalized) else {
+            customItem = ""
+            return
+        }
+        selectedItems.insert(trimmed)
+        customItem = ""
     }
 }
 

@@ -60,7 +60,8 @@ struct AnesthesiaDetailView: View {
                         section: selectedTab,
                         surgery: $surgery,
                         anesthesia: $anesthesia,
-                        patient: $patient
+                        patient: $patient,
+                        surgeryId: surgeryId
                     )
                     .padding(.horizontal)
                 }
@@ -166,6 +167,7 @@ struct ContentSectionView: View {
     @Binding var surgery: SurgeryDTO?
     @Binding var anesthesia: SurgeryAnesthesiaDetailsDTO?
     @Binding var patient: PatientDTO?
+    let surgeryId: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -177,10 +179,9 @@ struct ContentSectionView: View {
                     anesthesia: $anesthesia
                 )
             case .apa:
-                ContentUnavailableView(
-                    "Avaliação Pré-Anestésica",
-                    systemImage: "person.text.rectangle",
-                    description: Text("Dados de avaliação pré-anestésica do paciente quando tivermos uma view apropriada")
+                PreanesthesiaDetailView(
+                    surgeryId: surgeryId,
+                    initialPreanesthesia: nil
                 )
             case .medications:
                 ContentUnavailableView(
@@ -259,5 +260,7 @@ enum TabSection: CaseIterable {
         .environmentObject(SurgerySession(authSession: AuthSession(), api: SurgeryAPI()))
         .environmentObject(AnesthesiaSession(authSession: AuthSession(), api: AnesthesiaAPI()))
         .environmentObject(PatientSession(authSession: AuthSession(), api: PatientAPI()))
+        .environmentObject(PreanesthesiaSession(authSession: AuthSession(), api: PreanesthesiaAPI()))
+        .environmentObject(SharedPreAnesthesiaSession(authSession: AuthSession()))
     }
 }

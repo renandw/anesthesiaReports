@@ -52,17 +52,17 @@ struct LoginView: View {
                         .frame(width: 8, height: 8)
                     Text(healthStatus.text)
                         .font(.caption)
-                        .foregroundColor(healthStatus.color)
+                        .foregroundStyle(healthStatus.color)
                 }
                 .padding(.vertical, 6)
                 .padding(.horizontal, 10)
                 .background(healthStatus.color.opacity(0.12))
-                .clipShape(Capsule())
+                .clipShape(.capsule)
 
                 VStack(spacing: 12) {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 56))
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.blue)
 
                     Text("Entrar")
                         .font(.title2.weight(.semibold))
@@ -77,12 +77,13 @@ struct LoginView: View {
                             TextField("Email", text: $email)
                                 .textInputAutocapitalization(.never)
                                 .keyboardType(.emailAddress)
+                                .textContentType(.username)
                                 .autocorrectionDisabled()
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(.rect(cornerRadius: 10))
                         
                         HStack(spacing: 12) {
                             Image(systemName: "lock.fill")
@@ -96,6 +97,7 @@ struct LoginView: View {
                                 }
                             }
                             .textInputAutocapitalization(.never)
+                            .textContentType(.password)
 
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash" : "eye")
@@ -110,17 +112,17 @@ struct LoginView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(.rect(cornerRadius: 10))
 
                         if let errorMessage {
                             Text(errorMessage)
-                                .foregroundColor(.red)
+                                .foregroundStyle(.red)
                                 .font(.footnote)
                         }
                     }
                     .padding(16)
                     .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(.rect(cornerRadius: 16))
                     .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
 
                     Button(action: {
@@ -130,10 +132,10 @@ struct LoginView: View {
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                     }
                     .background(loginFeedbackState.color)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(.rect(cornerRadius: 12))
                     .disabled(isLoginButtonDisabled)
                 }
 
@@ -145,7 +147,7 @@ struct LoginView: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
                         .background(Color(.systemBackground))
-                        .clipShape(Capsule())
+                        .clipShape(.capsule)
                 }
 
                 Spacer()

@@ -8,9 +8,9 @@ final class SharedPreAnesthesiaSession: ObservableObject {
     private let authSession: AuthSession
     private let api: SharedPreAnesthesiaAPI
 
-    init(authSession: AuthSession, api: SharedPreAnesthesiaAPI = SharedPreAnesthesiaAPI()) {
+    init(authSession: AuthSession, api: SharedPreAnesthesiaAPI? = nil) {
         self.authSession = authSession
-        self.api = api
+        self.api = api ?? SharedPreAnesthesiaAPI()
     }
 
     func getBySurgery(surgeryId: String) async throws -> SharedPreAnesthesiaDTO {

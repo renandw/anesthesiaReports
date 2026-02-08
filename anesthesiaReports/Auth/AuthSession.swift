@@ -32,7 +32,7 @@ final class AuthSession: ObservableObject {
         }
 
         do {
-            let response = try await tokenManager.refresh()
+            _ = try await tokenManager.refresh()
             guard let userSession else {
                 state = .unauthenticated
                 return

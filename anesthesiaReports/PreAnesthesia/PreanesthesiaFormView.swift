@@ -13,6 +13,16 @@ struct PreanesthesiaFormView: View {
         case failure
     }
 
+    private enum DeleteVisualState {
+        case idle
+        case deleting
+        case success
+        case failure
+    }
+    private enum LoadingScope: Hashable {
+        case sharedPre
+    }
+
     let surgeryId: String
     let initialPreanesthesia: SurgeryPreanesthesiaDetailsDTO?
     let mode: Mode
@@ -27,17 +37,32 @@ struct PreanesthesiaFormView: View {
     @State private var asaSelection: ASAClassification?
     @State private var anesthesiaTechniques: [AnesthesiaTechniqueDTO] = []
     @State private var showingTechniqueSheet = false
-    @State private var clearance: PreanesthesiaClearanceDTO?
+    @State private var clearanceStatus: ClearanceStatus?
+    @State private var clearanceItems: [String] = []
     @State private var showClearanceSheet = false
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var isDeleting = false
+    @State private var deleteVisualState: DeleteVisualState = .idle
+    @State private var showDeleteConfirm = false
     @State private var submitVisualState: SubmitVisualState = .idle
     @State private var hasAttemptedSubmit = false
+    @State private var loadingScopes: Set<LoadingScope> = []
+    @State private var hasLoadedShared = false
+    @State private var didLoadInitial = false
 
     private var isEditing: Bool { initialPreanesthesia != nil }
 
     var body: some View {
         Form {
+            PreanesthesiaClearanceSection(
+                status: clearanceStatus,
+                items: clearanceItems,
+                onEdit: { status, items in
+                    clearanceStatus = status
+                    clearanceItems = items
+                }
+            )
             Section {
                 NavigationLink {
                     AsaPickerView(selection: $asaSelection)
@@ -58,7 +83,9 @@ struct PreanesthesiaFormView: View {
             }
 
             Section {
-                if anesthesiaTechniques.isEmpty {
+                if !hasLoadedShared {
+                    techniquesShimmer
+                } else if anesthesiaTechniques.isEmpty {
                     Text("Nenhuma técnica adicionada")
                         .foregroundStyle(.secondary)
                 } else {
@@ -79,16 +106,20 @@ struct PreanesthesiaFormView: View {
                     .onDelete(perform: removeTechnique)
                 }
 
-                Button("Adicionar técnica") {
+                Button{
                     showingTechniqueSheet = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("Adicionar técnica")
+                        
+                    }
                 }
             } header: {
                 Text("Técnicas Anestésicas")
             }
 
-            PreanesthesiaClearanceSection(clearance: clearance, onEdit: {
-                showClearanceSheet = true
-            })
+            
 
             Section {
                 if let inlineValidationMessage {
@@ -116,33 +147,37 @@ struct PreanesthesiaFormView: View {
                 .listRowBackground(submitButtonColor)
                 .disabled(isSubmitting)
             }
+
+            if isEditing {
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Text(deleteButtonTitle)
+                            .foregroundStyle(.white)
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .listRowBackground(deleteButtonColor)
+                    .disabled(isSubmitting || isDeleting)
+                }
+            }
         }
-        .navigationTitle(isEditing ? "Editar Pré-anestesia" : "Criar Pré-anestesia")
-        .onAppear {
-            loadInitial()
+        .navigationTitle(isEditing ? "Editar APA" : "Criar APA")
+        .task {
+            await loadInitial()
+        }
+        .alert("Excluir pré-anestesia?", isPresented: $showDeleteConfirm) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Excluir", role: .destructive) {
+                Task { await deletePreanesthesia() }
+            }
+        } message: {
+            Text("Essa ação remove a pré-anestesia e não pode ser desfeita.")
         }
         .sheet(isPresented: $showingTechniqueSheet) {
             AnesthesiaTechniquePickerView { technique in
                 anesthesiaTechniques.append(technique)
-            }
-        }
-        .sheet(isPresented: $showClearanceSheet) {
-            if let preanesthesiaId = initialPreanesthesia?.preanesthesiaId {
-                PreanesthesiaClearancePickerView(
-                    status: clearanceStatusOrDefault(),
-                    selectedItems: clearance?.items.map { $0.itemValue } ?? []
-                ) { status, items in
-                    Task {
-                        await saveClearance(
-                            preanesthesiaId: preanesthesiaId,
-                            status: status,
-                            items: items
-                        )
-                    }
-                }
-            } else {
-                Text("Salve a pré-anestesia para editar o clearance.")
-                    .presentationDetents([.medium])
             }
         }
     }
@@ -154,7 +189,7 @@ struct PreanesthesiaFormView: View {
     private var submitButtonTitle: String {
         switch submitVisualState {
         case .idle:
-            return "Salvar pré-anestesia"
+            return "Salvar APA"
         case .submitting:
             return "Enviando..."
         case .success:
@@ -168,6 +203,30 @@ struct PreanesthesiaFormView: View {
         switch submitVisualState {
         case .idle, .submitting:
             return .blue
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+
+    private var deleteButtonTitle: String {
+        switch deleteVisualState {
+        case .idle:
+            return "Excluir pré-anestesia"
+        case .deleting:
+            return "Excluindo..."
+        case .success:
+            return "Excluída"
+        case .failure:
+            return "Falha"
+        }
+    }
+
+    private var deleteButtonColor: Color {
+        switch deleteVisualState {
+        case .idle, .deleting:
+            return .red
         case .success:
             return .green
         case .failure:
@@ -199,69 +258,51 @@ struct PreanesthesiaFormView: View {
         submitVisualState = .idle
     }
 
-    private func loadInitial() {
+    private func loadInitial() async {
+        guard !didLoadInitial else { return }
+        didLoadInitial = true
         if let initialPreanesthesia {
             status = initialPreanesthesia.status
             asaSelection = parseASA(initialPreanesthesia.asaRaw)
             anesthesiaTechniques = initialPreanesthesia.anesthesiaTechniques
-            Task { await loadClearance(preanesthesiaId: initialPreanesthesia.preanesthesiaId) }
+            if let clearance = initialPreanesthesia.clearance {
+                clearanceStatus = ClearanceStatus(rawValue: clearance.status)
+                clearanceItems = clearance.items.map { $0.itemValue }
+            }
+            hasLoadedShared = true
             return
         }
 
-        Task {
-            do {
-                let shared = try await sharedPreSession.getBySurgery(surgeryId: surgeryId)
-                asaSelection = parseASA(shared.asaRaw)
-                anesthesiaTechniques = shared.anesthesiaTechniques
-            } catch {
-                // ignore if no shared_pre_anesthesia
-            }
-        }
+        await loadSharedPre()
     }
 
-    private func loadClearance(preanesthesiaId: String) async {
+    private func loadSharedPre(trackLoading: Bool = true) async {
+        hasLoadedShared = false
+        if trackLoading { loadingScopes.insert(.sharedPre) }
+        defer {
+            if trackLoading { loadingScopes.remove(.sharedPre) }
+            hasLoadedShared = true
+        }
+
         do {
-            clearance = try await preanesthesiaSession.getClearance(preanesthesiaId: preanesthesiaId)
+            let shared = try await sharedPreSession.getBySurgery(surgeryId: surgeryId)
+            asaSelection = parseASA(shared.asaRaw)
+            anesthesiaTechniques = shared.anesthesiaTechniques
         } catch {
-            clearance = nil
+            // ignore if no shared_pre_anesthesia
         }
     }
 
     private func clearanceStatusOrDefault() -> ClearanceStatus {
-        if let raw = clearance?.status, let status = ClearanceStatus(rawValue: raw) {
-            return status
-        }
-        return .able
-    }
-
-    private func saveClearance(
-        preanesthesiaId: String,
-        status: ClearanceStatus,
-        items: [String]
-    ) async {
-        let input = UpsertPreanesthesiaClearanceInput(
-            status: status.rawValue,
-            items: items.map { PreanesthesiaClearanceItemInput(
-                item_type: status.itemType,
-                item_value: $0
-            )}
-        )
-
-        do {
-            clearance = try await preanesthesiaSession.upsertClearance(
-                preanesthesiaId: preanesthesiaId,
-                input: input
-            )
-        } catch let authError as AuthError {
-            errorMessage = authError.userMessage
-        } catch {
-            errorMessage = "Erro ao salvar clearance"
-        }
+        clearanceStatus ?? .able
     }
 
     private func save() async {
         hasAttemptedSubmit = true
-        guard inlineValidationMessage == nil else { return }
+        if let validationMessage = inlineValidationMessage {
+            errorMessage = validationMessage
+            return
+        }
 
         errorMessage = nil
         submitVisualState = .submitting
@@ -275,7 +316,8 @@ struct PreanesthesiaFormView: View {
                     input: UpdatePreanesthesiaInput(
                         status: status,
                         asa_raw: asaSelection?.displayName ?? "",
-                        anesthesia_techniques: anesthesiaTechniques.map { mapTechniqueInput($0) }
+                        anesthesia_techniques: anesthesiaTechniques.map { mapTechniqueInput($0) },
+                        clearance: clearanceInput()
                     )
                 )
                 onSaved?(response)
@@ -285,13 +327,15 @@ struct PreanesthesiaFormView: View {
                         surgery_id: surgeryId,
                         status: status,
                         asa_raw: asaSelection?.displayName ?? "",
-                        anesthesia_techniques: anesthesiaTechniques.map { mapTechniqueInput($0) }
+                        anesthesia_techniques: anesthesiaTechniques.map { mapTechniqueInput($0) },
+                        clearance: clearanceInput()
                     )
                 )
                 onSaved?(response)
             }
 
             submitVisualState = .success
+            errorMessage = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 submitVisualState = .idle
             }
@@ -301,6 +345,29 @@ struct PreanesthesiaFormView: View {
         } catch let authError as AuthError {
             await failSubmit(authError.userMessage, authError: authError)
         } catch {
+            await failSubmit("Erro de rede", authError: nil)
+        }
+    }
+
+    private func deletePreanesthesia() async {
+        guard let existing = initialPreanesthesia else { return }
+        isDeleting = true
+        deleteVisualState = .deleting
+        errorMessage = nil
+        defer { isDeleting = false }
+
+        do {
+            try await preanesthesiaSession.delete(preanesthesiaId: existing.preanesthesiaId)
+            deleteVisualState = .success
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                deleteVisualState = .idle
+            }
+            if mode == .standalone { dismiss() }
+        } catch let authError as AuthError {
+            deleteVisualState = .failure
+            await failSubmit(authError.userMessage, authError: authError)
+        } catch {
+            deleteVisualState = .failure
             await failSubmit("Erro de rede", authError: nil)
         }
     }
@@ -316,16 +383,25 @@ struct PreanesthesiaFormView: View {
             regionRaw: technique.regionRaw
         )
     }
-
+    
     private func techniqueSummary(_ technique: AnesthesiaTechniqueDTO) -> String {
-        let categoryName = technique.categoryRaw.capitalized
-        let typeName = technique.type.replacingOccurrences(of: "_", with: " ").capitalized
+        let categoryName = categoryDisplayName(technique.categoryRaw)
+        let typeName = typeDisplayName(technique.type)
         return "\(categoryName) · \(typeName)"
     }
 
-    private func regionDisplayName(_ region: String) -> String {
-        region.replacingOccurrences(of: "_", with: " ").capitalized
+    private func categoryDisplayName(_ raw: String) -> String {
+        AnesthesiaTechniqueCategory(rawValue: raw)?.displayName ?? raw
     }
+
+    private func typeDisplayName(_ raw: String) -> String {
+        AnesthesiaTechniqueType(rawValue: raw)?.displayName ?? raw
+    }
+
+    private func regionDisplayName(_ raw: String) -> String {
+        AnesthesiaTechniqueRegion(rawValue: raw)?.displayName ?? raw
+    }
+
 
     private func parseASA(_ rawValue: String?) -> ASAClassification? {
         guard let rawValue else { return nil }
@@ -340,6 +416,33 @@ struct PreanesthesiaFormView: View {
 
         let lowered = rawValue.lowercased()
         return ASAClassification.allCases.first(where: { $0.displayName.lowercased() == lowered })
+    }
+
+    private var techniquesShimmer: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.25))
+                .frame(height: 18)
+                .shimmering()
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.25))
+                .frame(height: 18)
+                .shimmering()
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func clearanceInput() -> UpsertPreanesthesiaClearanceInput? {
+        guard let status = clearanceStatus else { return nil }
+        return UpsertPreanesthesiaClearanceInput(
+            status: status.rawValue,
+            items: clearanceItems.map {
+                PreanesthesiaClearanceItemInput(
+                    item_type: status.itemType,
+                    item_value: $0
+                )
+            }
+        )
     }
 }
 

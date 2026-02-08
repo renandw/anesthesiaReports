@@ -8,9 +8,9 @@ final class FinancialService: ObservableObject {
     private let authSession: AuthSession
     private let api: FinancialAPI
 
-    init(authSession: AuthSession, api: FinancialAPI = FinancialAPI()) {
+    init(authSession: AuthSession, api: FinancialAPI? = nil) {
         self.authSession = authSession
-        self.api = api
+        self.api = api ?? FinancialAPI()
     }
 
     func get(surgeryId: String) async throws -> SurgeryFinancialDetailsDTO {

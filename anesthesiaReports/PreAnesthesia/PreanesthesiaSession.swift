@@ -4,7 +4,6 @@ import Combine
 @MainActor
 final class PreanesthesiaSession: ObservableObject {
     @Published private(set) var preanesthesia: SurgeryPreanesthesiaDetailsDTO?
-    @Published private(set) var clearance: PreanesthesiaClearanceDTO?
 
     private let authSession: AuthSession
     private let api: PreanesthesiaAPI
@@ -62,39 +61,6 @@ final class PreanesthesiaSession: ObservableObject {
         do {
             try await api.delete(preanesthesiaId: preanesthesiaId)
             self.preanesthesia = nil
-            self.clearance = nil
-        } catch let authError as AuthError {
-            authSession.handleFatalAuthError(authError)
-            throw authError
-        }
-    }
-
-    func getClearance(preanesthesiaId: String) async throws -> PreanesthesiaClearanceDTO {
-        do {
-            let response = try await api.getClearance(preanesthesiaId: preanesthesiaId)
-            self.clearance = response
-            return response
-        } catch let authError as AuthError {
-            authSession.handleFatalAuthError(authError)
-            throw authError
-        }
-    }
-
-    func upsertClearance(preanesthesiaId: String, input: UpsertPreanesthesiaClearanceInput) async throws -> PreanesthesiaClearanceDTO {
-        do {
-            let response = try await api.upsertClearance(preanesthesiaId: preanesthesiaId, input: input)
-            self.clearance = response
-            return response
-        } catch let authError as AuthError {
-            authSession.handleFatalAuthError(authError)
-            throw authError
-        }
-    }
-
-    func deleteClearance(preanesthesiaId: String) async throws {
-        do {
-            try await api.deleteClearance(preanesthesiaId: preanesthesiaId)
-            self.clearance = nil
         } catch let authError as AuthError {
             authSession.handleFatalAuthError(authError)
             throw authError

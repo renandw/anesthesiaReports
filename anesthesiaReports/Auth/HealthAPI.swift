@@ -20,7 +20,9 @@ struct HealthAPI {
                     }
 
                     let decoder = JSONDecoder()
-                    let decoded = try decoder.decode(HealthResponse.self, from: data)
+                    let decoded = try await MainActor.run {
+                        try decoder.decode(HealthResponse.self, from: data)
+                    }
                     if decoded.status == "ok",
                        decoded.services.api == "up",
                        decoded.services.db == "up" {

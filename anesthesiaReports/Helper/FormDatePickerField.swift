@@ -137,6 +137,6 @@ struct DateOnlyPickerSheetButton: View {
 }
 
 #Preview {
-    @State var date: String = "2024-12-15"
+    @Previewable @State var date: String = "2024-12-15"
     DateOnlyPickerSheetButton(isoDate: $date, title: "Data de Nascimento")
 }
