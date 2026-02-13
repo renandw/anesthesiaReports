@@ -558,6 +558,7 @@ struct SurgeryPreanesthesiaDetailsDTO: Decodable {
     let asaRaw: String?
     let anesthesiaTechniques: [AnesthesiaTechniqueDTO]
     let clearance: PreanesthesiaClearanceDTO?
+    let items: [PreanesthesiaItemDTO]?
     let createdAt: Date
     let createdBy: String
     let updatedAt: Date?
@@ -575,6 +576,7 @@ struct SurgeryPreanesthesiaDetailsDTO: Decodable {
         case asaRaw = "asa_raw"
         case anesthesiaTechniques = "anesthesia_techniques"
         case clearance
+        case items
         case createdAt = "created_at"
         case createdBy = "created_by"
         case updatedAt = "updated_at"
@@ -616,6 +618,26 @@ struct PreanesthesiaClearanceDTO: Decodable {
         case items
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+}
+
+struct PreanesthesiaItemDTO: Decodable {
+    let itemId: String
+    let domain: String
+    let category: String
+    let code: String
+    let isCustom: Bool
+    let customLabel: String?
+    let details: String?
+
+    enum CodingKeys: String, CodingKey {
+        case itemId = "item_id"
+        case domain
+        case category
+        case code
+        case isCustom = "is_custom"
+        case customLabel = "custom_label"
+        case details
     }
 }
 
@@ -790,19 +812,22 @@ struct CreatePreanesthesiaInput: Encodable {
     let asa_raw: String
     let anesthesia_techniques: [AnesthesiaTechniqueInput]
     let clearance: UpsertPreanesthesiaClearanceInput?
+    let items: [PreanesthesiaItemInput]?
 
     init(
         surgery_id: String,
         status: String?,
         asa_raw: String,
         anesthesia_techniques: [AnesthesiaTechniqueInput] = [],
-        clearance: UpsertPreanesthesiaClearanceInput? = nil
+        clearance: UpsertPreanesthesiaClearanceInput? = nil,
+        items: [PreanesthesiaItemInput]? = nil
     ) {
         self.surgery_id = surgery_id
         self.status = status
         self.asa_raw = asa_raw
         self.anesthesia_techniques = anesthesia_techniques
         self.clearance = clearance
+        self.items = items
     }
 }
 
@@ -811,17 +836,20 @@ struct UpdatePreanesthesiaInput: Encodable {
     let asa_raw: String
     let anesthesia_techniques: [AnesthesiaTechniqueInput]
     let clearance: UpsertPreanesthesiaClearanceInput?
+    let items: [PreanesthesiaItemInput]?
 
     init(
         status: String?,
         asa_raw: String,
         anesthesia_techniques: [AnesthesiaTechniqueInput] = [],
-        clearance: UpsertPreanesthesiaClearanceInput? = nil
+        clearance: UpsertPreanesthesiaClearanceInput? = nil,
+        items: [PreanesthesiaItemInput]? = nil
     ) {
         self.status = status
         self.asa_raw = asa_raw
         self.anesthesia_techniques = anesthesia_techniques
         self.clearance = clearance
+        self.items = items
     }
 }
 
@@ -833,4 +861,13 @@ struct UpsertPreanesthesiaClearanceInput: Encodable {
 struct PreanesthesiaClearanceItemInput: Encodable, Hashable {
     let item_type: String
     let item_value: String
+}
+
+struct PreanesthesiaItemInput: Encodable, Hashable {
+    let domain: String
+    let category: String
+    let code: String
+    let is_custom: Bool
+    let custom_label: String?
+    let details: String?
 }

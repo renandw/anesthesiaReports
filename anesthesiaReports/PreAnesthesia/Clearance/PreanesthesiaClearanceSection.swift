@@ -45,8 +45,12 @@ struct PreanesthesiaClearanceSection: View {
                         onSave: onEdit
                     )
                 } label: {
-                    Text("Selecione")
-                        .foregroundStyle(.secondary)
+                    HStack{
+                        Text("Status")
+                        Spacer()
+                        Text("Selecione")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -68,7 +72,7 @@ struct PreanesthesiaClearanceSection: View {
 #Preview {
     List {
         PreanesthesiaClearanceSection(
-            status: .able,
+            status: nil,
             items: ["adaptedFasting", "Hidratar bem"],
             onEdit: { _, _ in }
         )

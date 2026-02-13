@@ -108,3 +108,7 @@ Onde:
 - Menos validação duplicada em views.
 - Mensagens consistentes no app.
 - Evolução fácil das regras sem tocar em múltiplas telas.
+
+
+
+codex resume 019c1bea-6a31-77a1-8d15-4e18a836a31b
